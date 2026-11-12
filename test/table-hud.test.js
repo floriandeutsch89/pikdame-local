@@ -305,8 +305,8 @@ test('settings sheet: four groups (plus "Dieser Tisch" at the table), language i
   assert.deepEqual(groups, [
     ['Dieser Tisch', ['towerPanelBtn', 'tableRulesBtn', 'tableLogBtn']],
     ['Ton', ['soundCheckbox', 'musicLevelSelect', 'musicTrackSelect']],
-    ['Darstellung', ['uiScaleSelect', 'cardbackBtn', 'tableMarkBtn', 'fullscreenCheckbox', 'celebrationSelect']],
-    ['Spielhilfen', ['tutorialHintsCheckbox', 'aidTipsCheckbox', 'aidDiscardCheckbox', 'aidLayOffCheckbox', 'aidLowCardsCheckbox', 'oppMovesCheckbox', 'bossFxCheckbox', 'botQuipsCheckbox']],
+    ['Darstellung', ['uiScaleSelect', 'cardbackBtn', 'tableMarkBtn', 'fullscreenCheckbox', 'celebrationSelect', 'petSelect']],
+    ['Spielhilfen', ['tutorialHintsCheckbox', 'aidTipsCheckbox', 'aidDiscardCheckbox', 'aidLayOffCheckbox', 'aidLowCardsCheckbox', 'oppMovesCheckbox', 'bossFxCheckbox', 'petsCheckbox', 'botQuipsCheckbox']],
     ['Allgemein', ['versionBtn', 'studioLogoSelect', 'debugCheckbox']],
   ]);
   assert.ok(doc.getElementById('tableOptions').classList.contains('hidden'), '"Dieser Tisch" only at the table');

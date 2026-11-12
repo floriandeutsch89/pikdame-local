@@ -357,6 +357,7 @@
     updateResumeBtn();    // "Weiterspielen (CODE)" - enthaelt einen Wert
     try { updateStudioLogoBtn(); } catch (e) { /* erst spaeter definiert */ }
     try { updateCelebrationSetting(); } catch (e) { /* erst spaeter definiert */ }
+    try { updatePetSetting(); } catch (e) { /* erst spaeter definiert */ }
     try { updateMusicSetting(); } catch (e) { /* erst spaeter definiert */ }
     try { applyCardback(); } catch (e) { /* erst spaeter definiert */ }
     applyTableMark();
@@ -1809,6 +1810,9 @@
       if (/Siegesjubel/.test(msg.error || '')) {
         try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ }
       }
+      if (/Haustier/.test(msg.error || '')) {
+        try { updatePetSetting(); } catch (e) { /* cosmetic */ }
+      }
       // Tutorial: a refusal is the best teaching moment - the rule behind it
       // goes into the coach card, alone (the centred toast covered the card).
       const why = tutorialActive ? tutorialExplainError(msg.error || '') : null;
@@ -1825,7 +1829,9 @@
       return;
     }
     if (msg.type === 'state') {
+      const beforeState = lastState;
       lastState = msg.state;
+      try { notePetEvents(beforeState, lastState); } catch (e) { /* pets are decoration */ }
       try { maybeClaimBadges(); } catch (e) { /* cards are a bonus */ }
       if (lastState.challengeDate && sessionCode) {
         const over = lastState.abandoned || ['gameOver', 'abandoned'].includes(lastState.phase);
@@ -1999,6 +2005,7 @@
       publicMode = !!msg.publicMode;
       el('statsBtn').classList.toggle('hidden', publicMode);
       try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ }
+      try { updatePetSetting(); } catch (e) { /* cosmetic */ }
       if (!publicMode && !towerInfo) requestTower();
       try { renderTowerTile(); } catch (e) { /* cosmetic */ }
       if (msg.quests) dailyQuests = msg.quests;
@@ -3508,6 +3515,7 @@
       });
     // Rebuilt meld cards still in flight stay hidden until their ghost lands.
     try { holdTableMoves(); } catch (e) { /* cosmetic */ }
+    try { renderPets(); } catch (e) { /* pets are decoration, never critical */ }
   }
 
   // The forfeit vote sits in the home dialog, next to "Tisch verlassen". Not in
@@ -8334,7 +8342,8 @@
     if (opts.priority) toastLockUntil = now + duration;
     const container = el('toastContainer');
     // opts.html: a short list on the toast's own surface (the recap after looking away).
-    container.classList.toggle('recap', !!opts.html);
+    container.classList.toggle('recap', !!opts.html && !opts.cls);
+    container.classList.toggle('petCard', opts.cls === 'petCard');
     if (opts.html) container.innerHTML = opts.html;
     else setIconText(container, text, opts.icon);
     container.classList.add('visible');
@@ -9556,6 +9565,7 @@
   // --- "Optionen": one sheet for the start screen and the table (gear) --------
   function openOptions() {
     try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ } // sign-in may have changed
+    try { updatePetSetting(); } catch (e) { /* cosmetic */ }
     try { renderTableOptions(); } catch (e) { /* the sheet opens anyway */ }
     el('settingsOverlay').classList.remove('hidden');
   }
@@ -12639,10 +12649,11 @@
     for (const [id, level] of Object.entries(THEME_LEVELS)) out.push({ level, kind: 'theme', id, label: L(`Tischfarbe „${themeName(id)}“`, `table colour "${themeName(id)}"`) });
     for (const [level, de, en] of LEVEL_TITLES) if (level > 1) out.push({ level, kind: 'title', id: de, label: L(`Titel „${de}“`, `title "${en}"`) });
     for (const c of CELEBRATIONS) if (c.level > 1) out.push({ level: c.level, kind: 'celebration', id: c.id, label: L(`Siegesjubel „${c.de}“`, `victory celebration "${c.en}"`) });
+    for (const pt of PET_LIST) if (pt.level > 1) out.push({ level: pt.level, kind: 'pet', id: pt.id, label: L(`Haustier „${pt.de}“`, `pet "${pt.en}"`) });
     return out.sort((a, b) => a.level - b.level);
   }
   // Icons from the sprite per kind; an emote IS its emoji (content), so its label keeps it.
-  const REWARD_ICONS = { cardback: 'cards', mark: 'feltmark', theme: 'palette', title: 'tag', celebration: 'sparkle' };
+  const REWARD_ICONS = { cardback: 'cards', mark: 'feltmark', theme: 'palette', title: 'tag', celebration: 'sparkle', pet: 'paw' };
   function rewardHtml(r) {
     return REWARD_ICONS[r.kind] ? `${iconHtml(REWARD_ICONS[r.kind])}<span>${escapeHtml(r.label)}</span>` : `<span>${escapeHtml(r.label)}</span>`;
   }
@@ -12671,6 +12682,9 @@
     '🃏': 20, '😅': 21, '🤞': 22, '👀': 23, '🙄': 24, '😬': 26, '🙃': 28, '🤝': 30, '😇': 32, '☕': 34, '🐢': 36, '🍻': 38, '❤️': 40,
   };
   // Mirrors game/Celebrations.js (contract test); the names live here.
+  // Table pets: the list and the drawing come from public/pet.js (mirrors game/Pets.js, contract test).
+  const petApi = window.PikdamePet || null;
+  const PET_LIST = petApi ? petApi.PETS : [];
   const CELEBRATIONS = [
     { id: 'standard', level: 1, de: 'Standard', en: 'Standard' },
     { id: 'cats', level: 10, de: 'Katzen-Konfetti', en: 'Cat confetti' },
@@ -13007,6 +13021,145 @@
     });
     el('celebrationPreviewBtn').addEventListener('click', () => playCelebration(el('celebrationSelect').value, el('celebrationPreview')));
     updateCelebrationSetting();
+  } catch (e) { /* Einstellung ist Komfort */ }
+
+  // --- Table pets (game/Pets.js, public/pet.js) -------------------------------
+  // The choice lives on the profile (the whole table sees it), the switch
+  // "Haustiere am Tisch" on the device. pet.js draws and names the mood;
+  // here it is placed, kept in rhythm across re-draws and explained on a tap.
+  const PETS_KEY = 'pikdame_pets';
+  let petsOn = storageGet(PETS_KEY) !== 'off';
+  const petBorn = {}; // seat id -> when its pet first showed (keeps the rhythm)
+  const petFx = {}; // seat id -> { mood, until }: a reaction that runs out
+  let petTurn = { id: null, since: 0 }; // who is on turn, since when (for the yawn)
+  let petTimer = null;
+  function myPetChoice() {
+    const me = myProfile();
+    return (me && me.pet) || 'none';
+  }
+  function updatePetSetting() {
+    const item = el('petItem');
+    if (!item) return; // a stale cached page: the setting just waits
+    item.classList.toggle('hidden', publicMode || !petApi);
+    const sel = el('petSelect');
+    const level = myLevel();
+    for (const opt of sel.options) {
+      const pt = PET_LIST.find((x) => x.id === opt.value);
+      if (!pt) continue;
+      const locked = level < pt.level;
+      opt.disabled = locked;
+      opt.textContent = locked ? `${L(pt.de, pt.en)} · ${L(`ab Stufe ${pt.level}`, `level ${pt.level}`)}` : L(pt.de, pt.en);
+    }
+    sel.value = myPetChoice();
+    const allowed = canPickFavorites();
+    sel.disabled = !allowed;
+    el('petHint').textContent = allowed
+      ? L('Sitzt an deinem Platz, alle sehen es', 'Sits at your seat for everyone to see')
+      : L('Mit Konto wählbar', 'Sign in to choose');
+    // The preview shows the first pet there is, also while it is still locked: something to look forward to.
+    const shown = PET_LIST.find((x) => x.id === sel.value && x.id !== 'none') || PET_LIST.find((x) => x.id !== 'none');
+    const mine = sel.value !== 'none';
+    const text = mine
+      ? L('Tippt jemand am Tisch auf dein Haustier, sieht er, wem es gehört.', 'When someone at the table taps your pet, they see whose it is.')
+      : level < shown.level
+        ? L(`Ab Stufe ${shown.level} zieht sie bei dir ein.`, `It moves in with you at level ${shown.level}.`)
+        : L('Wartet darauf, an deinen Platz zu dürfen.', 'Waiting to come to your seat.');
+    el('petPreview').innerHTML = petApi
+      ? `${petApi.html(shown.id, { mood: mine ? 'happy' : level < shown.level ? 'sleep' : 'idle', collar: PLAYER_COLORS[0], born: petBornOf('preview') })}<span class="petPreviewText">${escapeHtml(text)}</span>`
+      : '';
+  }
+  function petBornOf(key) {
+    if (!petBorn[key]) petBorn[key] = Date.now();
+    return petBorn[key];
+  }
+  /** "Haustiere am Tisch": off, no pet is drawn at any seat on this device. */
+  function setPetsOn(on) {
+    petsOn = on;
+    storageSet(PETS_KEY, on ? 'on' : 'off');
+    const box = el('petsCheckbox');
+    if (box) box.checked = on;
+    renderPets();
+  }
+  /** A reaction that started with this state (the Queen of Spades melded), and who is on turn since when. */
+  function notePetEvents(prev, st) {
+    if (!petApi || !st) return;
+    const now = Date.now();
+    Object.assign(petFx, petApi.eventsBetween(prev, st, now));
+    if (st.currentPlayerId !== petTurn.id || !prev || prev.roundNumber !== st.roundNumber) petTurn = { id: st.currentPlayerId, since: now };
+  }
+  function petMoodOf(seatId) {
+    const now = Date.now();
+    return petApi.mood(lastState, seatId, { fx: petFx[seatId], turnMs: petTurn.id === seatId ? now - petTurn.since : 0, now });
+  }
+  function petMarkup(seat) {
+    return petApi.html(seat.pet, { mood: petMoodOf(seat.id), collar: playerColor(seat.id), born: petBornOf(seat.id) });
+  }
+  /** Whose pet this is and how to get one - the answer to "I want that too". */
+  function showPetCard(seat) {
+    const pt = PET_LIST.find((x) => x.id === seat.pet);
+    if (!pt || !petApi) return;
+    const mine = seat.id === playerId;
+    const title = mine ? L(`Deine ${pt.de}`, `Your ${pt.en.toLowerCase()}`) : L(`${pt.de} von ${seat.name}`, `${seat.name}'s ${pt.en.toLowerCase()}`);
+    const how = mine || myLevel() >= pt.level
+      ? L('Unter „Optionen“ wählst du, ob sie mit an den Tisch kommt.', 'Under "Options" you choose whether it comes to the table.')
+      : L(`Haustiere gibt es ab Stufe ${pt.level}. Du bist auf Stufe ${myLevel()}.`, `Pets unlock at level ${pt.level}. You are at level ${myLevel()}.`);
+    showToast('', {
+      duration: 4200, cls: 'petCard', priority: true, // asked for by a tap: it shows, whatever else is up
+      html: `${petApi.html(seat.pet, { mood: 'happy', collar: playerColor(seat.id), born: petBornOf(seat.id) })}` +
+        `<span class="petCardText"><b>${escapeHtml(title)}</b><span>${escapeHtml(how)}</span></span>`,
+    });
+  }
+  /** My pet sits on the tray's top edge, left of the piles: measured, because the tray clips its own children. */
+  function placeMyPet(box) {
+    const table = el('table').getBoundingClientRect();
+    const tray = el('handWrapper').getBoundingClientRect();
+    const size = box.firstElementChild ? box.firstElementChild.getBoundingClientRect().height : 0;
+    if (!tray.width || !size) return;
+    box.style.left = `${Math.round(tray.left - table.left + 14)}px`;
+    box.style.top = `${Math.round(tray.top - table.top - size + 5)}px`; // the paws a little over the edge
+  }
+  /** Puts every pet at its seat: the opponents' on their chips, mine on the hand tray. Safe to call any time. */
+  function renderPets() {
+    const mineBox = el('myPet');
+    if (!mineBox) return;
+    const atTable = petApi && petsOn && lastState && lastState.phase !== 'lobby';
+    const seats = atTable ? (lastState.players || []).filter((p) => !p.isBot && !p.leftGame && petApi.isPet(p.pet)) : [];
+    for (const chip of el('opponents').children) {
+      const seat = seats.find((p) => p.id === chip.dataset.playerId);
+      const old = chip.querySelector('.pet');
+      const row = chip.querySelector('.opName');
+      if (!seat || !row) { if (old) old.remove(); continue; }
+      const mood = petMoodOf(seat.id);
+      if (old && old.dataset.mood === mood) continue;
+      if (old) old.remove();
+      row.insertAdjacentHTML('beforeend', petMarkup(seat));
+      const node = row.lastElementChild;
+      node.dataset.mood = mood;
+      node.title = L(`${seat.name} hat ein Haustier`, `${seat.name} has a pet`);
+      node.addEventListener('click', (ev) => { ev.stopPropagation(); showPetCard(seat); });
+    }
+    const me = seats.find((p) => p.id === playerId);
+    const mood = me ? petMoodOf(me.id) : '';
+    if (!me) { if (mineBox.firstChild) mineBox.innerHTML = ''; }
+    else if (mineBox.dataset.mood !== mood || !mineBox.firstChild) {
+      mineBox.innerHTML = petMarkup(me);
+      mineBox.dataset.mood = mood;
+      mineBox.onclick = () => showPetCard(me);
+    }
+    if (me) placeMyPet(mineBox);
+    // Moods that depend on the clock (a reaction running out, the yawn): look again while a pet is there.
+    if (seats.length && !petTimer) petTimer = setInterval(() => { try { renderPets(); } catch (e) { /* decoration */ } }, 700);
+    else if (!seats.length && petTimer) { clearInterval(petTimer); petTimer = null; }
+  }
+  try {
+    el('petSelect').addEventListener('change', () => {
+      if (!canPickFavorites()) { updatePetSetting(); return; }
+      send({ type: 'setPet', name: myName, pet: el('petSelect').value, accountToken: accountToken() || undefined });
+    });
+    const box = el('petsCheckbox');
+    box.checked = petsOn;
+    box.addEventListener('change', () => setPetsOn(box.checked));
+    updatePetSetting();
   } catch (e) { /* Einstellung ist Komfort */ }
 
   try {

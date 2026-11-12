@@ -254,6 +254,20 @@ test('server: only the signed-in owner picks, only unlocked ids; the whole table
   // A refused pick changes nothing at the table.
   set(flo, 'goldqueen');
   assert.match(await error(flo), /ab Stufe 50/);
+
+  // The table pet (game/Pets.js) follows the same rules: the owner's account, an unlocked id, seen by all.
+  const pet = (ws, id, extra = {}) => ws.send(JSON.stringify({ type: 'setPet', name: 'Flo', pet: id, accountToken: token, ...extra }));
+  pet(flo, 'cat', { accountToken: undefined });
+  assert.match(await error(flo), /Dein Haustier wählst du mit deinem Konto/, 'no token: refused');
+  pet(guest, 'cat', { name: 'Gast', accountToken: undefined });
+  assert.match(await error(guest), /mit deinem Konto/, 'a guest has no pet to pick');
+  pet(flo, 'dragon');
+  assert.equal(await error(flo), 'Dieses Haustier gibt es nicht.');
+  pet(flo, 'cat'); // level 20 >= 12
+  await stateWhere(guest, (m) => floSeat(m).pet === 'cat', "the guest sees Flo's cat");
+  assert.equal((await stateWhere(flo, (m) => floSeat(m).pet === 'cat', 'my own state')).state.players.find((p) => p.name === 'Gast').pet, undefined);
+  pet(flo, 'none');
+  await stateWhere(guest, (m) => floSeat(m).pet === undefined, 'the cat stays home');
 });
 
 // --- Client (jsdom) -----------------------------------------------------------

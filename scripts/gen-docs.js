@@ -148,7 +148,7 @@ secrets), e.g. \`PIKDAME_DATABASE_PASSWORD_FILE=/run/secrets/db_password\`.
 // Which phase a client message belongs to. Everything not listed lands in "other".
 const MSG_GROUPS = [
   ['Before a table', 'Sent on a fresh connection, before the socket is bound to a table. These carry `msg.name` because the server has no seat to look up yet.',
-    ['createSession', 'joinSession', 'checkSession', 'abandonSession', 'listProfiles', 'claimBadges', 'getGameHistory', 'setFavoriteBadges', 'setCelebration', 'ping',
+    ['createSession', 'joinSession', 'checkSession', 'abandonSession', 'listProfiles', 'claimBadges', 'getGameHistory', 'setFavoriteBadges', 'setCelebration', 'setPet', 'ping',
       'getPuzzle', 'solvePuzzle', 'revealPuzzle', 'startChallenge', 'startTutorial', 'getTower', 'startTower',
       'createStammtisch', 'getStammtisch', 'listStammtische', 'leaveStammtisch', 'deleteStammtisch', 'getYearReview']],
   ['Lobby', 'Only valid while the table is in the `lobby` phase; most of them host-only.',

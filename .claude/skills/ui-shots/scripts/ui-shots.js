@@ -1168,11 +1168,12 @@ async function fanOut() {
           await shot('tower-motion-3-land');
           await page.click('#towerCloseBtn');
         }
-        if (sc === 'settings' || sc === 'settings-aids' || sc === 'settings-music') {
+        if (sc === 'settings' || sc === 'settings-aids' || sc === 'settings-music' || sc === 'settings-pet') {
           await page.click('#settingsBtnLobby'); await page.waitForTimeout(400);
           // settings-aids: scrolled to the play aids at the end of the sheet.
           if (sc === 'settings-aids') await page.evaluate(() => document.getElementById('aidLowCardsCheckbox').scrollIntoView({ block: 'center' }));
           if (sc === 'settings-music') await page.evaluate(() => document.getElementById('musicItem').scrollIntoView({ block: 'center' }));
+          if (sc === 'settings-pet') await page.evaluate(() => document.getElementById('petItem').scrollIntoView({ block: 'center' }));
           await shot(sc);
           await page.click('#settingsOverlayCloseBtn');
         }
@@ -1367,6 +1368,18 @@ async function fanOut() {
           if (arg('js', '')) await page.evaluate(fs.readFileSync(arg('js', ''), 'utf8')); // --js <file>: DOM mockups
           await page.waitForTimeout(200);
           await shot(sc);
+        }
+        // Table pets (public/pet.js): a cat at my seat and at the human opponents' (--pet-tap: the card a tap opens).
+        if (sc === 'pets') {
+          const st = teamTableState();
+          for (const p of st.players) if (!p.isBot) p.pet = 'cat';
+          inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+          inject({ type: 'state', state: st });
+          await page.waitForTimeout(1200);
+          await shot('pets');
+          await page.evaluate(() => { const c = document.querySelector('#opponents .pet'); if (c) c.click(); });
+          await page.waitForTimeout(500);
+          await shot('pets-card');
         }
         // Joker choice dialog over a table: "set or run?" or, with --joker layoff, which end.
         if (sc === 'joker-choice') {
