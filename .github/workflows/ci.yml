@@ -445,7 +445,9 @@ jobs:
   # new or renamed job never needs a settings change. Skipped jobs (e.g.
   # changelog-fragment outside pull requests) count as passed.
   ci-ok:
-    if: always()
+    # Runs after failures too, but not for a run a newer push cancelled:
+    # that would only paint a red check on a commit nobody merges.
+    if: ${{ !cancelled() }}
     needs: [secret-scan, changelog-fragment, test, tower-proofs, tower-generate, dependency-check, image, docker-security, docker-smoke, helm-validate]
     runs-on: ubuntu-latest
     timeout-minutes: 5

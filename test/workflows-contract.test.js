@@ -36,5 +36,5 @@ test('ci-ok waits for every other CI job, so it can be the one required check', 
   const jobs = [...text.slice(text.indexOf('\njobs:')).matchAll(/^  ([\w-]+):\s*$/gm)].map((m) => m[1]);
   const needs = text.match(/^  ci-ok:[\s\S]*?needs: \[([^\]]+)\]/m)[1].split(',').map((s) => s.trim());
   assert.deepStrictEqual(needs.sort(), jobs.filter((j) => j !== 'ci-ok').sort());
-  assert.match(text, /^  ci-ok:\n    if: always\(\)/m, 'it must report even when a job it waits for failed');
+  assert.match(text, /^  ci-ok:\n(?:    #.*\n)*    if: \$\{\{ !cancelled\(\) \}\}/m, 'it must report even when a job it waits for failed');
 });
