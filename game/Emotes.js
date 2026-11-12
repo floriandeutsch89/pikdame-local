@@ -8,8 +8,9 @@
 // 'pikdame' is a styled mini card on the client (there is no ♠Q emoji).
 
 const EMOTE_DEFS = [
-  // The classic seven: always available.
+  // The basic set: always available.
   { id: '👍', level: 1, cat: 'smileys' },
+  { id: '👎', level: 1, cat: 'smileys' },
   { id: '😂', level: 1, cat: 'smileys' },
   { id: '😱', level: 1, cat: 'smileys' },
   { id: '😤', level: 1, cat: 'smileys' },
@@ -51,7 +52,7 @@ const EMOTE_DEFS = [
 const EMOTE_CATEGORIES = ['smileys', 'nature', 'food', 'activity', 'objects', 'symbols'];
 const KEYBOARD_ORDER = [
   '😅', '😂', '🙃', '😇', '🤩', '🤔', '😬', '🙄', '😴', '🥳', '😎', '😱', '😤', '🙈',
-  '🤞', '👍', '👏', '🤝', '🙏', '💪', '👀',
+  '🤞', '👍', '👎', '👏', '🤝', '🙏', '💪', '👀',
   '🐢', '🍀', '🔥',
   '☕', '🍻',
   '🎉', '🃏', 'pikdame',
