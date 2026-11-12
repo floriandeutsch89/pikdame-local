@@ -176,10 +176,9 @@ window.I18N_STATIC = {
   'Bordeaux': 'Bordeaux',
   'Abhebe-Position': 'Cut position',
   'Pik Dame': 'Pik Dame',
-  'Deine letzten abgeschlossenen Partien (bis 1000 Punkte, im Team bis 2000) - nur auf diesem Gerät/mit diesem Spielernamen.': 'Your last completed games (up to 1000 points, 2000 as a team) - only on this device/with this player name.',
-  'Übersicht': 'Overview',
+  'Ich': 'Me',
   'Bestenliste': 'Leaderboard',
-  'Meine Partien': 'My games',
+  'Partien': 'Games',
   'Impressum & Datenschutz': 'Legal notice & privacy',
   'Verbinde...': 'Connecting...',
   // Konto
