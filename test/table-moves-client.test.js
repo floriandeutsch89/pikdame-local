@@ -797,3 +797,67 @@ test('the marker never holds my turn back when nothing flies: switched off, it m
   assert.deepStrictEqual([...c.doc.querySelectorAll('#opponents .opponent.active')].map((n) => n.dataset.playerId), ['b2']);
   assert.deepEqual(c.errors, []);
 });
+
+// --- back at the table: the recap of what was missed ------------------------------------
+function away(c, ms) {
+  const real = c.window.Date.now;
+  let hidden = true;
+  Object.defineProperty(c.doc, 'hidden', { configurable: true, get: () => hidden });
+  c.doc.dispatchEvent(new c.window.Event('visibilitychange'));
+  return {
+    back() {
+      c.window.Date.now = () => real() + ms;
+      hidden = false;
+      c.doc.dispatchEvent(new c.window.Event('visibilitychange'));
+    },
+  };
+}
+const LOG = [
+  { t: 100, text: 'Klaus wirft Herz-3 ab.' },
+  { t: 150, text: 'Klaus zieht eine Karte vom Stapel.' },
+  { t: 200, text: 'Klaus legt eine neue Satz-Auslage aus.' },
+  { t: 300, text: 'Klaus wirft Karo-9 ab.' },
+  { t: 400, text: 'Horst ist getrennt - kehrt Horst nicht zurück, übernimmt gleich ein Bot.' },
+];
+
+test('back after looking away: the lines since I left become one recap, chip statuses stay out', async (t) => {
+  const c = boot();
+  t.after(() => c.window.close());
+  await ready();
+  c.join();
+  c.state(before({ log: LOG.slice(0, 1) }));
+  const gone = away(c, 20000);
+  c.state(after({ log: LOG })); // arrives while the page is hidden
+  gone.back();
+  const toast = c.doc.getElementById('toastContainer');
+  assert.ok(toast.classList.contains('recap') && toast.classList.contains('visible'));
+  assert.match(toast.querySelector('.recapHead').textContent, /Seit du weg warst/);
+  assert.deepStrictEqual([...toast.querySelectorAll('.recapLine')].map((n) => n.textContent),
+    ['Klaus legt eine neue Satz-Auslage aus.', 'Klaus wirft Karo-9 ab.'], 'only what came after I left, without the plain draw and the disconnect line');
+  assert.deepEqual(c.errors, []);
+});
+
+test('no recap for a glance away, for a single line, or away from a running table', async (t) => {
+  const c = boot();
+  t.after(() => c.window.close());
+  await ready();
+  c.join();
+  const toast = c.doc.getElementById('toastContainer');
+  c.state(before({ log: LOG.slice(0, 1) }));
+  let gone = away(c, 2000);
+  c.state(after({ log: LOG }));
+  gone.back();
+  assert.ok(!toast.classList.contains('recap'), 'two seconds are no absence');
+  c.state(before({ log: LOG.slice(0, 2) }));
+  gone = away(c, 20000);
+  c.state(after({ log: LOG.slice(0, 3) }));
+  gone.back();
+  assert.ok(!toast.classList.contains('recap'), 'one new line: the ordinary toast says it');
+  // The round ended while I was away: its result sheet tells the story.
+  c.state(before({ log: LOG.slice(0, 1) }));
+  gone = away(c, 20000);
+  c.state({ ...after({ log: LOG }), phase: 'roundEnd' });
+  gone.back();
+  assert.ok(!toast.classList.contains('recap'), 'no recap over a result sheet');
+  assert.deepEqual(c.errors, []);
+});
