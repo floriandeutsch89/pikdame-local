@@ -18,6 +18,7 @@ const MoveLogger = require('./MoveLogger');
 const { dayEnd } = require('./GameDay');
 const { isQuipMoment } = require('./BotQuips');
 const { isCelebration } = require('./Celebrations');
+const { isPet } = require('./Pets');
 const Badges = require('./Badges');
 const BotTower = require('./BotTower');
 const BossFight = require('./BossFight');
@@ -222,6 +223,7 @@ class GameManager {
     delete seat.botDifficulty;
     delete seat.disconnectedAt;
     delete seat.celebration; // the newcomer's own one is set by the server right after
+    delete seat.pet; // ... and so is the pet
     for (const f of SEAT_CONTROL_FIELDS) delete seat[f];
     this.totals[seat.id] = this.totals[seat.id] || 0;
     if (!this.hostId) this.hostId = seat.id;
@@ -242,6 +244,15 @@ class GameManager {
     if (!seat || seat.isBot) return;
     if (id !== 'standard' && isCelebration(id)) seat.celebration = id;
     else delete seat.celebration;
+  }
+
+  /** A human seat's table pet (game/Pets.js). The server checks the level;
+   *  anything unknown or 'none' clears it. */
+  setPlayerPet(playerId, id) {
+    const seat = this.players.find((p) => p.id === playerId);
+    if (!seat || seat.isBot) return;
+    if (id !== 'none' && isPet(id)) seat.pet = id;
+    else delete seat.pet;
   }
 
   /** Which bot seat a joining human takes. In the lobby the one farthest from
@@ -3672,6 +3683,8 @@ class GameManager {
         leftGame: p.leftGame || undefined,
         // Victory celebration the whole table sees when this seat wins (whitelist only, even from a snapshot).
         celebration: !p.isBot && !p.leftGame && isCelebration(p.celebration) ? p.celebration : undefined,
+        // Table pet at this seat, for everyone to see (whitelist only, even from a snapshot).
+        pet: !p.isBot && !p.leftGame && p.pet !== 'none' && isPet(p.pet) ? p.pet : undefined,
         handCount: p.hand.length,
         hand: p.id === forPlayerId ? p.hand : undefined,
       })),
