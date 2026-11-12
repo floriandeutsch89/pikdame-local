@@ -36,7 +36,9 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
 - **Table scene:** `--scenes table --state <file>` injects a live game. Build
   the state from the real engine (`GameManager` + `fillWithBots` +
   `runBotTurn`, then `publicState('p1')`), not by hand.
-- **Table pets:** `pets` (a cat at my seat and at the human opponents', then the card a tap on one opens) and
+- **Table pets:** `pets` (a cat at my seat and at the human opponents', then the card a tap on one opens;
+  `--pets-case crowd` = three human opponents with long names, a last card, a dropped connection). Every run
+  prints `pets [...]: N shown, no overlap` or what a pet lies on: a pet must never cover anything. And
   `settings-pet` (the pet choice with its preview in "Optionen").
 - **Joker choice dialog:** `joker-choice` ("set or run?"; `--joker layoff` = which end of a run).
 - **Other players' moves in flight:** `opp-moves` (a bot's turn in one state:

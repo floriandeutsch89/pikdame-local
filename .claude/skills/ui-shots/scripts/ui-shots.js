@@ -1369,17 +1369,63 @@ async function fanOut() {
           await page.waitForTimeout(200);
           await shot(sc);
         }
-        // Table pets (public/pet.js): a cat at my seat and at the human opponents' (--pet-tap: the card a tap opens).
+        // Table pets (public/pet.js): a cat at my seat and at the human opponents', then the card a tap opens.
+        // --pets-case crowd: three human opponents with long names, a last card, a dropped connection, the dealer.
+        // Every run measures: a pet must lie on nothing and stay inside its chip / the tray (prints "pets: ...").
         if (sc === 'pets') {
-          const st = teamTableState();
-          for (const p of st.players) if (!p.isBot) p.pet = 'cat';
+          let st;
+          if (arg('pets-case', 'team') === 'crowd') {
+            st = oppTurnStates('draw').before;
+            const names = ['Maximilian-Alexander', 'Oma Gerda', 'Wilhelmine'];
+            st.players.filter((p) => p.id !== 'p1').forEach((p, i) => {
+              Object.assign(p, { isBot: false, name: names[i], botDifficulty: undefined, pet: 'cat', handCount: i === 0 ? 1 : p.handCount, controlledByBot: i === 2 });
+              if (i === 1) st.dealerId = p.id;
+            });
+            st.players.find((p) => p.id === 'p1').pet = 'cat';
+            await page.evaluate(() => { try { localStorage.setItem('pikdame_aid_lowcards', 'on'); } catch (e) { /* blocked */ } });
+            await page.reload(); await page.waitForTimeout(900);
+          } else {
+            st = teamTableState();
+            for (const p of st.players) if (!p.isBot) p.pet = 'cat';
+          }
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
           inject({ type: 'state', state: st });
           await page.waitForTimeout(1200);
-          await shot('pets');
+          const report = await page.evaluate(() => {
+            const r = (e) => { const b = e.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height }; };
+            const hit = (a, b) => a.w > 0 && b.w > 0 && a.x < b.x + b.w - 0.5 && b.x < a.x + a.w - 0.5 && a.y < b.y + b.h - 0.5 && b.y < a.y + a.h - 0.5;
+            const inside = (a, b) => a.x >= b.x - 0.5 && a.y >= b.y - 0.5 && a.x + a.w <= b.x + b.w + 0.5 && a.y + a.h <= b.y + b.h + 0.5;
+            const out = [];
+            const pets = [...document.querySelectorAll('#opponents .pet, #myPet .pet, #tablePet .pet')];
+            for (const pet of pets) {
+              const pr = r(pet);
+              const chip = pet.closest('.opponent');
+              const who = chip ? `pet of ${chip.querySelector('.opNameText').textContent}` : `my pet (${pet.closest('#tablePet') ? 'beside the piles' : 'in the tray row'})`;
+              const home = chip ? r(chip) : r(pet.closest('#tablePet') ? document.getElementById('centerPiles') : document.getElementById('handWrapper'));
+              if (!inside(pr, home)) out.push(`${who}: sticks out of its ${chip ? 'chip' : 'tray'}`);
+              const leaves = [...document.querySelectorAll('#table *')].filter((e) => !pet.contains(e) && !e.contains(pet) && e.children.length === 0 && e.getClientRects().length);
+              const seen = (e) => { // clipped or covered parts do not count: ask the page at the middle of the shared area
+                const er = r(e);
+                const cx = (Math.max(pr.x, er.x) + Math.min(pr.x + pr.w, er.x + er.w)) / 2;
+                const cy = (Math.max(pr.y, er.y) + Math.min(pr.y + pr.h, er.y + er.h)) / 2;
+                return document.elementsFromPoint(cx, cy).includes(e);
+              };
+              for (const e of leaves) if (hit(pr, r(e)) && seen(e)) out.push(`${who}: lies on <${e.tagName.toLowerCase()} class="${e.getAttribute('class') || ''}"> "${(e.textContent || '').trim().slice(0, 20)}" in ${e.parentElement.id || e.parentElement.getAttribute('class')}`);
+              if (chip) { const n = chip.querySelector('.opNameText'); out.push(`${who}: ${Math.round(pr.w)}px, name shows ${Math.round(n.clientWidth)} of ${Math.round(n.scrollWidth)}px`); }
+              else out.push(`${who}: ${Math.round(pr.w)}px`);
+            }
+            return { pets: pets.length, lines: out };
+          });
+          if (arg('js', '')) { // a scratch probe that leaves its report in #petMeasure
+            await page.evaluate(fs.readFileSync(arg('js', ''), 'utf8'));
+            console.log(await page.evaluate(() => (document.getElementById('petMeasure') || {}).textContent || ''));
+          }
+          const bad = report.lines.filter((l) => /sticks out|lies on/.test(l));
+          console.log(`pets [${vn}${arg('ui-scale', '') ? ` ${arg('ui-scale', '')}` : ''}, ${arg('pets-case', 'team')}]: ${report.pets} shown, ${bad.length ? 'OVERLAP' : 'no overlap'}\n  ${report.lines.join('\n  ')}`);
+          await shot(`pets${arg('pets-case', 'team') === 'crowd' ? '-crowd' : ''}`);
           await page.evaluate(() => { const c = document.querySelector('#opponents .pet'); if (c) c.click(); });
           await page.waitForTimeout(500);
-          await shot('pets-card');
+          if (arg('pets-case', 'team') !== 'crowd') await shot('pets-card');
         }
         // Joker choice dialog over a table: "set or run?" or, with --joker layoff, which end.
         if (sc === 'joker-choice') {

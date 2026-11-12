@@ -2057,13 +2057,24 @@ a.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset
   .pet.mood-happy .petHeartA, .pet.mood-sleep .petZ, .pet.mood-cheer .petSpark { opacity: 1; }
 }
 
-/* At a seat: on the chip's name row; the name gives way. */
-.opponent .pet { --pet-size: 24px; margin: -3px -6px -3px auto; }
+/* A pet has a place of its own in the row it sits in: it never lies on anything.
+   At a seat that is the end of the chip's name row (the name gives way); mine shares
+   the tray's first track with the fold button. Both rows are taller than the pet. */
+.opponent .pet { --pet-size: 24px; margin-left: auto; }
 .opponent .opName:has(> .pet) .opNameText { text-align: left; }
-/* My own sits on the top edge of the hand tray. The tray clips what sticks out of it,
-   so the pet is a child of the table, put there by client.js (placeMyPet). */
-#myPet { position: absolute; left: 0; top: 0; z-index: var(--z-table-fx); }
-#myPet .pet { --pet-size: 34px; }
+/* The lead never shrinks (no min-width: 0), so its 1fr track is at least as wide as button and pet:
+   the pet cannot slide under the middle track. It sits on the row's floor, below the progress
+   line that runs along the tray's top edge. */
+.handLead { display: inline-flex; align-items: center; gap: 6px; }
+/* With a pet the outer tracks take only what they need: equal ones would cost the middle its width twice. */
+.handToolbar.hasPet { grid-template-columns: auto minmax(0, 1fr) auto; }
+/* Portrait: the piles strip has its left end free - there my pet has room to be seen
+   (client.js picks this home only while nothing else reaches into that corner). */
+#tablePet { position: absolute; left: 14px; bottom: 6px; display: inline-flex; } /* size and inset: client.js PET_PILE_* */
+#tablePet .pet { --pet-size: 36px; }
+#tablePet:empty { display: none; }
+#myPet { display: inline-flex; align-self: flex-end; }
+#myPet .pet { --pet-size: 22px; }
 #myPet:empty { display: none; }
 /* Tapped: whose it is and how to get one, the figure large. */
 #toastContainer.petCard { display: flex; align-items: center; gap: 12px; width: max-content; max-width: min(340px, 90vw); text-align: left; }
@@ -6930,8 +6941,7 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
    The melds got 63px, and 0px once the action bar showed up. This block sits
    at the very end on purpose, so it outranks those later rules. */
 @media (orientation: landscape) and (max-height: 540px) {
-  /* Table pets: the tray and the chips are lower here. */
-  #myPet .pet { --pet-size: 26px; }
+  /* Table pets: the chips are lower here. */
   .opponent .pet { --pet-size: 20px; }
   /* Statistik: the width is there, the height is not - "Ich" in two columns. */
   #statsOverlay .overlay-card { max-width: 780px; }

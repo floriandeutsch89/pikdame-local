@@ -37,8 +37,9 @@ test('client mirror: pet.js, the options select and the script order follow game
   const select = html.match(/<select id="petSelect"[^>]*>([\s\S]*?)<\/select>/);
   assert.deepEqual([...select[1].matchAll(/<option value="([^"]+)"/g)].map((m) => m[1]), PET_IDS, 'one option per pet, same order');
   assert.ok(html.indexOf('/pet.js') > 0 && html.indexOf('/pet.js') < html.indexOf('/client.js'), 'pet.js loads before client.js');
-  assert.match(html, /<span id="myPet"><\/span>\s*<div id="handWrapper">/, 'my pet lives beside the tray, which clips its children');
+  assert.match(html, /<span class="handLead"><button id="handToggleBtn"[\s\S]*?<\/button><span id="myPet"><\/span><\/span>/, 'my pet has its own place beside the fold button');
   assert.match(html, /id="petsCheckbox"/, 'a new animation can be switched off');
+  assert.match(html, /<span id="tablePet"><\/span>\s*<\/div>/, 'and a second home at the end of the piles strip, out of its flow');
 });
 
 test('pet.js: markup only from the list, a safe collar colour and mood, the age as a negative delay', () => {
@@ -192,7 +193,7 @@ test('client: a pet sits at its owner\'s seat, mine on the tray; a tap explains 
   assert.equal(chip('b1').querySelector('.pet'), null, 'a bot has none, whatever a state says');
   const mine = doc.querySelector('#myPet > .pet.pet-cat');
   assert.ok(mine && mine.classList.contains('mood-alert'), 'mine watches my turn');
-  const atTable = () => doc.querySelectorAll('#opponents .pet, #myPet .pet').length;
+  const atTable = () => doc.querySelectorAll('#opponents .pet, #myPet .pet, #tablePet .pet').length;
   assert.equal(atTable(), 2);
 
   // A tap on her cat: whose it is, on the toast - and the chip's own tap (the meld filter) does not fire.
