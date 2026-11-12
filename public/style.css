@@ -1932,17 +1932,36 @@ a.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset
   color: var(--paper-success);
 }
 
-.jokerChoiceOptions { display: flex; flex-direction: column; gap: 9px; margin: 16px 0 8px; }
-.jokerChoiceOptions button {
-  width: 100%; text-align: left;
-  padding: 14px 16px;
-  border-radius: var(--r-sm);
-  background: rgba(0,0,0,0.05);
+.jokerChoiceOptions { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 12px; }
+/* One option = the meld it would lay, the joker's place ringed. */
+.jcOption {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; min-height: var(--tap-min); text-align: left;
+  padding: 10px 12px 10px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--paper-line);
+  background: rgba(0,0,0,0.03);
   color: var(--card-ink);
-  font-size: 0.92rem; font-weight: 600;
-  transition: transform 0.15s var(--ease), background 0.15s ease;
+  transition: transform 0.15s var(--ease), background 0.15s ease, border-color 0.15s ease;
 }
-.jokerChoiceOptions button:active { background: var(--accent-soft); transform: scale(0.98); }
+.jcOption:active { background: var(--accent-soft); border-color: var(--accent); transform: scale(0.98); }
+@media (hover: hover) { .jcOption:hover { border-color: var(--accent); } }
+.jcText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.jcKind {
+  font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--card-ink); opacity: 0.66;
+}
+.jcDetail { font-size: var(--fs-lead); font-weight: 700; }
+.jcCards { display: flex; flex: none; max-width: 62%; overflow: hidden; padding: 3px; pointer-events: none; }
+.jcCards .card-compact { flex: none; margin-left: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+.jcCards .card-compact:first-child { margin-left: 0; }
+.jcCards .jcMore + .card-compact { margin-left: 4px; }
+.jcMore { align-self: center; padding: 0 2px; font-weight: 700; opacity: 0.6; }
+/* Long runs keep the fan, or they would not fit beside the text. */
+.jcCards.jcLong .card-compact { margin-left: -12px; }
+.jcCards.jcLong .card-compact:first-child { margin-left: 0; }
+.jcCards .card-compact.jcPick { outline: 2px solid var(--accent); outline-offset: -2px; }
+#jokerChoiceCancelBtn { width: 100%; }
 
 /* ============================ LOG ============================ */
 
@@ -6777,6 +6796,10 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
    The melds got 63px, and 0px once the action bar showed up. This block sits
    at the very end on purpose, so it outranks those later rules. */
 @media (orientation: landscape) and (max-height: 540px) {
+  .jokerChoiceOptions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 8px 0; }
+  .jcOption { padding: 6px 10px; }
+  #jokerChoiceOverlay .overlay-card { max-width: 660px; }
+  .jcDetail { font-size: var(--fs-body); }
   /* The desktop width cap (min-width: 900px) also caught a Pro Max on its
      side and left dead bands left and right. */
   .screen { max-width: none; }
