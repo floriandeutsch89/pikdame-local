@@ -200,6 +200,7 @@ on the client:
 | 🤔 | level 4 |
 | 🍀 | level 5 |
 | 😎 | level 6 |
+| 😲 | level 7 |
 | 🔥 | level 8 |
 | 😴 | level 10 |
 | 🙏 | level 12 |

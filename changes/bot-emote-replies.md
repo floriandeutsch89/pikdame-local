@@ -1,3 +1,6 @@
+### Added
+- Neue Reaktion am Tisch: Staunen 😲, ab Stufe 7
+
 ### Changed
 - Bots antworten jetzt auf alle Reaktionen, auch auf die freigespielten
   (ab Stufe 14), die Feiertags-Emotes und 🎂 am Ehrentag

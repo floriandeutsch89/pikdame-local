@@ -19,6 +19,7 @@ const BASE = {
   '🤔': [['⏳', 0.5], ['🤔', 0.5]],
   '🍀': [['🍀', 0.5], ['😤', 0.5]],
   '😎': [['😤', 0.6], ['😂', 0.4]],
+  '😲': [['😎', 0.5], ['😲', 0.5]],
   '🔥': [['🔥', 0.5], ['😱', 0.5]],
   '😴': [['⏳', 0.6], ['😴', 0.4]],
   '🙏': [['👍', 0.6], ['🙏', 0.4]],
@@ -53,7 +54,7 @@ const WARM_CHANCE = 0.8;
 
 // What the emote says about the sender's mood.
 const GLOAT = new Set(['😂', '😎', '🎉', '🥳', '🤩', '💪', '🔥', '🙃', '😇', '👀', '🃏', 'pikdame']);
-const DISMAY = new Set(['👎', '😱', '😤', '😬', '🙄', '🙈', '😅']);
+const DISMAY = new Set(['👎', '😱', '😲', '😤', '😬', '🙄', '🙈', '😅']);
 const PRAISE = new Set(['👏', '👍', '🤝', '🙏', '❤️', '🍻']);
 
 // Events good / bad for their actor. Older than the window = no context.
