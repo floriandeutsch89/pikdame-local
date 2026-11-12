@@ -2344,6 +2344,12 @@ body.raidActive #toastContainer { margin-top: 132px; }
 .scoreChartSvg .endLabel { fill: var(--text-muted); font-size: calc(var(--fs-micro) * var(--k, 1.1)); font-weight: 600; }
 .scoreChartSvg .endLabel.mine { fill: var(--card-ink); font-weight: 800; }
 .scoreChartSvg .endValue { fill: var(--card-ink); font-weight: 800; font-variant-numeric: tabular-nums; }
+/* A lead change on the game-over chart (public/score-chart.js): pops on the new
+   leader's line and is gone. Scaled around its own round (the <g> sits there). */
+.scoreChartSvg .leadPop { pointer-events: none; }
+.scoreChartSvg .leadPop circle { transform-origin: 0 0; opacity: 0; }
+.scoreChartSvg .leadPopRing { fill: none; stroke-width: 1.8; }
+.scoreChartSvg .leadPopDot { stroke: var(--card-bg); stroke-width: 1; }
 .scoreChartLegend {
   display: flex; flex-wrap: wrap; gap: 6px 14px;
   font-size: 0.68rem; color: var(--text-muted);

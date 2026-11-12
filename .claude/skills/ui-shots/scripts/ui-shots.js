@@ -20,6 +20,7 @@
 // Scenes: lobby, lobby-open, progress, stats, stats-badges (trophy cabinet + a favourite's
 // detail, then a rare badge's; favourites show with --signed-in), history, roundend, roundend-stats, gameover,
 // gameover-stats (its Statistik tab: game totals open, new achievements),
+// gameover-chart / gameover-chart-team (the score chart drawing itself, frozen at --film ms, then its end),
 // table (needs --state <file>: a GameManager.publicState('p1') JSON in the playing phase),
 // table-stammtisch (an engine table at the mock Stammtisch, seen by a guest: Oma Gerda organizes, bots on Mittel),
 // puzzle / puzzle-turn / puzzle-out (one meld laid), puzzle-refused (two melds laid at once: refused), puzzle-solved (3 stars + the tile),
@@ -292,6 +293,13 @@ const GAME_OVER_WIN = { ...GAME_OVER, totals: { p1: 1045, b1: 880, b2: 610, b3: 
     : i === a.length - 2 ? { round: h.round, totals: { p1: 820, b1: 700, b2: 500, b3: 260 } } : h)),
   lastRoundResult: { p1: mk(225, true), b1: mk(180), b2: mk(110), b3: mk(60) },
   gameOverInfo: { ...GAME_OVER.gameOverInfo, winnerId: 'p1' } };
+
+// gameover-chart: a match with three lead changes (rounds 2, 4 and the last one).
+const GAME_OVER_SWING = { ...GAME_OVER,
+  scoreHistory: [SCORE_HISTORY[0], SCORE_HISTORY[1], { round: 3, totals: { p1: 300, b1: 520, b2: 200, b3: 40 } },
+    { round: 4, totals: { p1: 610, b1: 580, b2: 380, b3: 190 } }, { round: 5, totals: { p1: 800, b1: 760, b2: 500, b3: 260 } },
+    { round: 6, totals: GAME_OVER.totals }],
+  lastRoundResult: { p1: mk(80), b1: mk(285, true), b2: mk(110), b3: mk(60) } };
 
 // "2 gegen 2" (roundend-team, gameover-team, gameover-team-win): Flo and Oma Gerda
 // (team A, seats 0+2) against the bots Klaus and Horst (team B, seats 1+3).
@@ -1554,7 +1562,42 @@ async function fanOut() {
           await page.waitForTimeout(1400); // slide-in, the medal's pop and the sweep of light
           await shot(sc);
         }
-        if (sc === 'gameover-tower') {
+        if (sc === 'gameover-chart' || sc === 'gameover-chart-team') {
+          // The score chart draws itself (public/score-chart.js): frames frozen --film ms after the
+          // sheet opened, then its end. A round end between two openings: the next one draws again.
+          const team = sc.endsWith('-team');
+          const open = async () => {
+            inject({ type: 'state', state: team ? TEAM_ROUND_END : ROUND_END });
+            await page.waitForTimeout(300);
+            inject({ type: 'state', state: team ? TEAM_GAME_OVER : GAME_OVER_SWING });
+            inject({ type: 'progress', gainedXp: 120, xp: 5440, level: { level: 14 }, record: { played: 43, won: 17 } });
+            await page.waitForTimeout(40);
+            await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+            // It starts once seen. Below the fold (landscape, small phones) the scene scrolls to it;
+            // where the sheet opens with the chart in view, the frame is the sheet as it opens.
+            await page.evaluate(() => {
+              const c = document.querySelector('#resultBody .scoreChartSvg');
+              const b = document.getElementById('resultBody');
+              if (!c || !b) return;
+              b.scrollTop = 0;
+              const r = c.getBoundingClientRect();
+              const v = b.getBoundingClientRect();
+              const seen = (Math.min(r.bottom, v.bottom) - Math.max(r.top, v.top)) / (r.height || 1);
+              if (seen < 0.8) c.scrollIntoView({ block: 'center' });
+            });
+            await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+            await page.waitForTimeout(40);
+          };
+          inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+          for (const t of arg('film', '300,700').split(',').map(Number)) {
+            await open();
+            await page.evaluate((ms) => document.getAnimations().forEach((a) => { a.pause(); a.currentTime = ms; }), t);
+            await shot(`${sc}-${String(t).padStart(4, '0')}`);
+          }
+          await open();
+          await page.waitForTimeout(2400);
+          await shot(`${sc}-end`);
+        } else if (sc === 'gameover-tower') {
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
           inject({ type: 'state', state: TOWER_STATE });
           inject(TOWER_RESULT);
@@ -1580,6 +1623,8 @@ async function fanOut() {
           if (sc.startsWith('gameover')) inject({ type: 'progress', gainedXp: 120, xp: 5440, level: { level: 14 }, record: { played: 43, won: 17 } });
           if (sc === 'gameover-win') inject({ type: 'badges', earned: [{ name: ME, badges: ['score_500'] }] });
           await page.waitForTimeout(1600); // count-up + winner animation
+          // The chart still draws its end labels then (score-chart.js): shoot it finished.
+          await page.evaluate(() => document.querySelectorAll('.scoreChartSvg').forEach((c) => c.getAnimations({ subtree: true }).forEach((a) => a.finish())));
           // A re-render keeps the body's scroll position: start every result shot at the top.
           await page.evaluate(() => { const b = document.getElementById('resultBody'); if (b) b.scrollTop = 0; });
           await page.waitForTimeout(100);

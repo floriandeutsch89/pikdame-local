@@ -30,6 +30,8 @@ window.I18N_STATIC = {
   'Ihre Karten fliegen über den Tisch': 'Their cards fly across the table',
   'Boss-Effekte': 'Boss effects',
   'Auftritt und Treffer im Kartenhaus': 'Entrance and hits in the House of Cards',
+  'Punkteverlauf zeichnen': 'Draw the score history',
+  'Die Linien bauen sich am Spielende auf': 'The lines build up when the match ends',
   'Kurze Sätze der Bots, selten': 'Rare short lines from the bots',
   'Vorspann': 'Intro',
   'Antippen überspringt ihn': 'Tap to skip it',

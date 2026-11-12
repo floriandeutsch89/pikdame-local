@@ -56,6 +56,7 @@ There is **no build step**. The client is plain HTML/CSS/JS served as-is: edit
 | `public/table-light.js` | The table's light by the time of day; colours in `style.css` (see {doc}`table-light`) |
 | `public/table-moves.js` | What another player just did, read from two states by where the cards are; `client.js` flies it |
 | `public/boss-fight.js` | The Kartenhaus boss floors at the table: panel, life bars, entrance, hit effects (see {doc}`boss-fight`) |
+| `public/score-chart.js` | The game-over score chart drawing itself: lead changes from the plotted totals, the lines' keyframes; `client.js` builds the chart |
 | `scripts/` | Tooling: A/B bot simulation, load test, docs generator |
 | `mcp/` | MCP server: an LLM agent plays a seat (see {doc}`mcp`) |
 | `test/` | The test suite (`node --test`) |

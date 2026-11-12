@@ -2368,6 +2368,7 @@
       }
     } catch (e) { /* nie kritisch */ }
 
+    if (lastState.phase !== 'gameOver') endChartReveal(); // the next match's chart draws itself again
     if (lastState.phase === 'roundEnd' || lastState.phase === 'gameOver') {
       if (soundedForRound !== lastState.roundNumber) {
         soundedForRound = lastState.roundNumber;
@@ -4353,7 +4354,10 @@
         box.innerHTML = `<h4>${L('Schlüsselmomente', 'Key moments')}</h4><ul class="momentList">${rows}</ul>`;
         paneResult.appendChild(box);
       }
-      if (chart) paneResult.insertBefore(chart, paneResult.querySelector('.matchMoments'));
+      if (chart) {
+        paneResult.insertBefore(chart, paneResult.querySelector('.matchMoments'));
+        try { revealScoreChart(chart); } catch (e) { /* cosmetic */ }
+      }
       // Small facts of the match: chips, not three loose lines of prose.
       const gi = lastState.gameOverInfo;
       const facts = [];
@@ -7691,6 +7695,61 @@
     return `<div class="scoreBar teamBar" style="--team-c:${teamColor(team)}" title="${escapeHtml(tb.title)}">` +
       `<i class="tbOwn" style="width:${tb.ownPct}%"></i><i class="tbMate" style="left:${tb.ownPct}%;width:${tb.matePct}%"></i></div>`;
   }
+  // --- The chart draws itself on the game-over sheet (public/score-chart.js) ---
+  const chartApi = window.PikdameScoreChart || null;
+  const CHART_REVEAL_KEY = 'pikdame_chart_reveal'; // "Punkteverlauf zeichnen" in "Optionen", per device, default on
+  let chartRevealOn = storageGet(CHART_REVEAL_KEY) !== 'off';
+  const chartReveals = new WeakMap(); // chart element -> its lines and lead changes
+  // Once per game-over sheet, from the moment the chart is seen (landscape: it sits below
+  // the fold). The sheet re-renders (badges, progress, language) and joins by the clock.
+  let chartRevealRun = null; // { key, t0, anims, seen }
+  function endChartReveal() {
+    if (chartRevealRun && chartRevealRun.seen) chartRevealRun.seen.disconnect();
+    chartRevealRun = null;
+  }
+  function revealScoreChart(chart) {
+    const spec = chartReveals.get(chart);
+    if (!chartApi || !spec || !chartRevealOn || reducedMotion) return;
+    const key = `${sessionCode || ''}:${lastState.roundNumber}`;
+    if (!chartRevealRun || chartRevealRun.key !== key) { endChartReveal(); chartRevealRun = { key, t0: null, anims: [], seen: null }; }
+    const run = chartRevealRun;
+    const svg = chart.querySelector('svg');
+    if (run.seen) { run.seen.disconnect(); run.seen = null; }
+    if (run.t0 !== null) { run.anims = chartApi.play(svg, spec, performance.now() - run.t0); return; }
+    run.anims = chartApi.play(svg, spec, 0, { paused: true });
+    const start = () => {
+      run.t0 = performance.now();
+      for (const a of run.anims) { try { a.play(); } catch (e) { /* cosmetic */ } }
+    };
+    if (typeof IntersectionObserver !== 'function') { start(); return; }
+    run.seen = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      run.seen.disconnect();
+      run.seen = null;
+      start();
+    }, { threshold: 0.2 }); // less than that shows the goal line at most, no curve
+    run.seen.observe(svg);
+  }
+  /** "Punkteverlauf zeichnen": off, the chart stands there finished, as before. */
+  function setChartReveal(on) {
+    chartRevealOn = on;
+    storageSet(CHART_REVEAL_KEY, on ? 'on' : 'off');
+    const box = el('chartRevealCheckbox');
+    if (box) box.checked = on;
+    if (!on && chartRevealRun) {
+      if (chartRevealRun.seen) { chartRevealRun.seen.disconnect(); chartRevealRun.seen = null; }
+      for (const a of chartRevealRun.anims) { try { a.finish(); } catch (e) { /* cosmetic */ } }
+      chartRevealRun.anims = [];
+      chartRevealRun.t0 = -1e9; // a re-render of this sheet finds it finished
+    }
+  }
+  {
+    const box = el('chartRevealCheckbox'); // missing in a stale cached page: the setting just waits
+    if (box) {
+      box.checked = chartRevealOn;
+      box.addEventListener('change', () => setChartReveal(box.checked));
+    }
+  }
   /** The match as two lines, one per team (A blue, B orange); mine is the bold one.
    *  st: the live table, or { teams, meId } of a stored game ("Meine Partien"). */
   function renderTeamScoreChart(history, st = lastState) {
@@ -7738,6 +7797,11 @@
     }
     // Others first (thinner, full colour: a translucent line failed contrast), mine last and on top.
     const order = players.slice().sort((a, b) => (a.id === meId) - (b.id === meId));
+    // What the game-over sheet needs to draw the lines (revealScoreChart): same totals, same order.
+    chartReveals.set(wrap, {
+      lines: order.map((p) => ({ id: p.id, color: colorOf(p.id), points: history.map((h, i) => [x(i), y(valueAt(h, p))]) })),
+      changes: chartApi ? chartApi.leadChanges(history, players.map((p) => p.id)) : [],
+    });
     order.forEach((p) => {
       const color = colorOf(p.id);
       const mine = p.id === meId;

@@ -117,6 +117,11 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   that moment (`1500`: the rain mid-band), `--reduced-motion` gives the still row.
   The script keeps the band until the shot is taken: its timer ends the still one
   after 2.4 s, and a 2x desktop shot took 1.6 s to capture (it came out empty).
+- **Score chart drawing itself:** `gameover-chart` (a match with three lead
+  changes; `gameover-chart-team` the team match) shoots the game-over chart
+  frozen `--film 300,700,...` ms after it was seen, then its end. Each frame is
+  a fresh opening (a round end in between). The plain `gameover*` scenes finish
+  the reveal before their shot.
 - **Badge unlock cards:** `unlock` (one card on a running table; `--badge <id>`
   another badge, default `wins_10`), `unlock-lobby` (the start screen),
   `unlock-roundend` / `unlock-gameover` (over the result sheets, where the card

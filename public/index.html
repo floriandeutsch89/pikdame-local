@@ -131,6 +131,7 @@
   <script src="/table-light.js" defer></script>
   <script src="/table-moves.js" defer></script>
   <script src="/boss-fight.js" defer></script>
+  <script src="/score-chart.js" defer></script>
   <script src="/client.js" defer></script>
   <script>
     /* Runs before the first paint: html.noSplash drops the studio intro that
@@ -1390,6 +1391,12 @@
                 <svg class="icon prefIcon" aria-hidden="true"><use href="#i-swords"/></svg>
                 <span class="prefText"><span class="prefLabel">Boss-Effekte</span><span class="prefSub">Auftritt und Treffer im Kartenhaus</span></span>
                 <input type="checkbox" id="bossFxCheckbox" class="settingsCheckbox" />
+              </label>
+              <!-- Off: the game-over chart stands there finished (client.js setChartReveal). -->
+              <label class="prefRow" for="chartRevealCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-trend"/></svg>
+                <span class="prefText"><span class="prefLabel">Punkteverlauf zeichnen</span><span class="prefSub">Die Linien bauen sich am Spielende auf</span></span>
+                <input type="checkbox" id="chartRevealCheckbox" class="settingsCheckbox" />
               </label>
               <label class="prefRow" for="botQuipsCheckbox">
                 <svg class="icon prefIcon" aria-hidden="true"><use href="#i-chat"/></svg>
