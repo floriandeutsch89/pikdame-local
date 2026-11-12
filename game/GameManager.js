@@ -9,6 +9,7 @@ const CUT_TIMEOUT_MS = 45000;
 const { validateMeld, validateSet, runAssignmentByOrder, tryLayOff, tryJokerSwap, enumerateMeldOptions, enumerateLayOffOptions, canFormMeldWithCard } = require('./Rules');
 const { scoreRound, scoreLines, applyRoundScores, checkGameOver, checkTeamGameOver, gameEndThreshold, sumValues, DEFAULT_HOUSE_RULES } = require('./ScoreBoard');
 const Teams = require('./Teams');
+const EmoteReplies = require('./EmoteReplies');
 const { sanitizeName } = require('./SessionRegistry');
 const { rankIndex, cardLabel, isPikDame, cardValue, RANKS } = require('./Card');
 const Bot = require('./Bot');
@@ -118,6 +119,7 @@ class GameManager {
     this._lastQuipAt = 0; // table-wide throttle, transient
     this._emoteTimers = new Set(); // pendende Emote-Timeouts (destroy räumt auf)
     this._undoStack = []; // meld-phase actions of the running turn a human may take back
+    this._tableEvents = []; // recent moments human emotes may refer to (EmoteReplies)
     this._lastBotEmote = {}; // botId -> Zeitstempel (Eigen-Drosselung)
     this.players = []; // { id, name, isBot, hand, connected, laidOutCards }
     this.totals = {};
@@ -1599,7 +1601,10 @@ class GameManager {
       player._pileTakes = (player._pileTakes || 0) + 1;
       this.addLog(`${player.name} nimmt die restlichen ${rest.length} Karten des Ablagestapels auf.`);
       // Einen dicken Stapel zu schlucken, entlockt selbst dem Bot ein Seufzen.
-      if (rest.length >= 4) this.maybeBotEmote(player.id, '😅', 0.55);
+      if (rest.length >= 4) {
+        this.maybeBotEmote(player.id, '😅', 0.55);
+        this._noteTableEvent('big_pile', player.id);
+      }
       if (rest.length >= 6) this.maybeBotQuip(player.id, 'big_pile', 0.4);
     }
   }
@@ -1758,7 +1763,10 @@ class GameManager {
     } else {
       // Eine dicke Auslage (viele Punkte auf einmal) - kleiner Stolz-Moment.
       const meldValue = cards.reduce((sum, cd) => sum + (cd.isJoker ? 0 : cardValue(cd)), 0);
-      if (meldValue >= 25) this.maybeBotEmote(player.id, '😎', 0.3);
+      if (meldValue >= 25) {
+        this.maybeBotEmote(player.id, '😎', 0.3);
+        this._noteTableEvent('big_meld', player.id);
+      }
     }
     this.checkRoundEnd(player);
     this.broadcastState();
@@ -2326,6 +2334,15 @@ class GameManager {
     }
 
     this._roundEndQuip(winnerId, roundResult, over);
+    // Context for human emotes: who got caught with the Queen, who won, who lost most.
+    for (const p of this.players) {
+      if ((((roundResult || {})[p.id] || {}).breakdown || {}).pikDameCount > 0) this._noteTableEvent('queen_caught', p.id);
+    }
+    if (winnerId) {
+      const losers = this.players.filter((p) => p.id !== winnerId && roundResult && roundResult[p.id]);
+      const worst = Math.min(...losers.map((p) => roundResult[p.id].roundScore));
+      this._noteTableEvent('round_won', winnerId, losers.filter((p) => roundResult[p.id].roundScore === worst).map((p) => p.id));
+    }
 
     // Runde in die Verlaufsaufzeichnung der laufenden Partie aufnehmen.
     this.roundHistory.push({
@@ -2612,6 +2629,7 @@ class GameManager {
   /** A laid/attached Pik Dame electrifies the table (same reaction wherever it
    *  happens - melded or laid off). */
   _celebratePikDame(playerId) {
+    this._noteTableEvent('queen_laid', playerId);
     this.maybeBotQuip(playerId, 'queen_laid', 0.45);
     this.maybeBotEmote(playerId, '🎉', 0.3, { force: true, fast: true, minHand: 3 });
     this.botsReact(playerId, '😱', 0.4, { force: true, fast: true, minHand: 3 });
@@ -2853,57 +2871,36 @@ class GameManager {
   }
 
   /**
-   * Social layer: at most ONE random bot answers a HUMAN emote (bots never
-   * answer bots - no cascades). Kept deliberately sparse: 45% chance, a
-   * table-wide 8s cooldown on replies, plus the per-bot 5s throttle. The
-   * reply arrives 0.7-2.2s later - 'seen it, thought a beat, answered'.
-   * Context special: an hourglass while a BOT is to move pokes exactly that
-   * bot (it feels rushed). Inspired by the small contextual AI reactions in
-   * games like Catan online.
+   * Social layer: at most ONE bot answers a HUMAN emote (bots never answer
+   * bots - no cascades), with a table-wide 8s cooldown. Who answers and with
+   * what comes from EmoteReplies.planReply: recent table events first (the
+   * beaten bot grumbles, the caught bot blushes), then the bot at turn for
+   * ⏳/👀, else a random bot from the base pool.
    */
   respondToHumanEmote(senderId, emoji) {
     const sender = this.players.find((p) => p.id === senderId);
     if (!sender || sender.isBot) return;
     const now = Date.now();
     if (now - (this._lastEmoteReplyAt || 0) < 8000) return;
-    const REPLIES = {
-      '👍': [['👍', 0.6], ['🎉', 0.4]],
-      '😂': [['😂', 0.7], ['😤', 0.3]],
-      '😱': [['😱', 0.5], ['😂', 0.5]],
-      '😤': [['😂', 0.6], ['👍', 0.4]],
-      '🎉': [['🎉', 0.6], ['👍', 0.4]],
-      '⏳': [['😤', 0.5], ['⏳', 0.5]],
-      pikdame: [['😱', 0.7], ['😂', 0.3]],
-      '🎃': [['🎃', 0.6], ['😱', 0.4]],
-      '🎆': [['🎆', 0.7], ['🎉', 0.3]],
-      '👏': [['👏', 0.5], ['👍', 0.5]],
-      '🙈': [['😂', 0.7], ['🙈', 0.3]],
-      '🤔': [['⏳', 0.5], ['🤔', 0.5]],
-      '🍀': [['🍀', 0.5], ['😤', 0.5]],
-      '😎': [['😤', 0.6], ['😂', 0.4]],
-      '🔥': [['🔥', 0.5], ['😱', 0.5]],
-      '😴': [['⏳', 0.6], ['😴', 0.4]],
-      '🙏': [['👍', 0.6], ['🙏', 0.4]],
-    };
-    const options = REPLIES[emoji];
-    if (!options) return;
-    // Kontext: gedrängelter Bot antwortet selbst; sonst ein zufälliger Bot.
     const current = this.currentPlayer && this.phase === 'playing' ? this.currentPlayer() : null;
-    let bot = emoji === '⏳' && current && current.isBot ? current : null;
-    if (!bot) {
-      const bots = this.players.filter((p) => p.isBot && p.id !== senderId);
-      if (bots.length === 0) return;
-      bot = bots[Math.floor(Math.random() * bots.length)];
-    }
-    const chance = emoji === '⏳' && current && current.isBot ? 0.6 : 0.45;
-    let roll = Math.random();
-    let reply = options[options.length - 1][0];
-    for (const [e, p] of options) {
-      if (roll < p) { reply = e; break; }
-      roll -= p;
-    }
+    const r = EmoteReplies.planReply({
+      emoji,
+      senderId,
+      bots: this.players.filter((p) => p.isBot).map((p) => p.id),
+      currentBotId: current && current.isBot ? current.id : null,
+      events: this._tableEvents,
+      now,
+      sameTeam: (a, b) => this.teamMode && this.teamOf(a) !== null && this.teamOf(a) === this.teamOf(b),
+    });
+    if (!r || !r.botId) return;
     this._lastEmoteReplyAt = now;
-    this.maybeBotEmote(bot.id, reply, chance, { force: true, reply: true });
+    this.maybeBotEmote(r.botId, r.emoji, r.chance, { force: true, reply: true });
+  }
+
+  /** Remembers a table moment a human emote may refer to (EmoteReplies). */
+  _noteTableEvent(kind, actorId, victimIds) {
+    if (!actorId) return;
+    this._tableEvents = EmoteReplies.pushEvent(this._tableEvents, { kind, actorId, victimIds: victimIds || [], at: Date.now() });
   }
 
   /** A bot says a short line - rare on purpose: a chance per moment and one
@@ -3004,7 +3001,8 @@ class GameManager {
         key === '_undoStack' ||
         key === '_undoBatch' ||
         key === '_teamNameChanges' ||
-        key === '_lastBotEmote'
+        key === '_lastBotEmote' ||
+        key === '_tableEvents'
       ) continue;
       if (typeof value === 'function') continue;
       state[key] = value;
@@ -3060,6 +3058,7 @@ class GameManager {
     // '_emoteTimers.add is not a function' scheitern.
     this._emoteTimers = new Set();
     this._lastBotEmote = {};
+    this._tableEvents = [];
     this._lastQuipAt = 0;
     this._botTimer = null;
     // Older snapshots have no team names; a restored name passes the cleaner again.
