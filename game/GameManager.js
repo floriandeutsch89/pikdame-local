@@ -54,6 +54,14 @@ const TUTORIAL_MSG_CAP = 200;
 const MAX_SEATS_LIMIT = 4; // Spielmaterial (Kartenanzahl, Joker) ist auf max. 4 Spieler ausgelegt
 const DEFAULT_MAX_SEATS = 4;
 let meldCounter = 0;
+// What a joker choice would put on the table: one entry per card, jokers with
+// the card they stand for. `freshId` marks the joker being added to a meld.
+function previewSlots(slots, freshId) {
+  return (slots || []).map((s) => (s.real
+    ? { rank: s.real.rank, suit: s.real.suit }
+    : { joker: true, rank: s.representsRank, suit: s.representsSuit, fresh: freshId == null || s.joker.id === freshId }));
+}
+
 function nextMeldId() {
   meldCounter += 1;
   return `meld-${meldCounter}`;
@@ -1608,7 +1616,10 @@ class GameManager {
       if (options.length > 1) {
         return {
           ambiguous: true,
-          options: options.map((o) => ({ id: o.id, type: o.type, label: o.label, jokerAssignments: o.jokerAssignments })),
+          options: options.map((o) => ({
+            id: o.id, type: o.type, label: o.label, jokerAssignments: o.jokerAssignments,
+            preview: previewSlots(validateMeld(cards, o.jokerAssignments).slots),
+          })),
         };
       }
       result = validateMeld(cards, options[0].jokerAssignments);
@@ -1895,7 +1906,10 @@ class GameManager {
       if (options.length > 1) {
         return {
           ambiguous: true,
-          options: options.map((o) => ({ id: o.id, label: o.label, asSuit: o.asSuit, side: o.side })),
+          options: options.map((o) => ({
+            id: o.id, type: meld.type, label: o.label, asSuit: o.asSuit, side: o.side,
+            preview: previewSlots(o.meld.slots, card.id),
+          })),
         };
       }
       result = options[0].meld;

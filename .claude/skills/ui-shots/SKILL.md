@@ -36,6 +36,7 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
 - **Table scene:** `--scenes table --state <file>` injects a live game. Build
   the state from the real engine (`GameManager` + `fillWithBots` +
   `runBotTurn`, then `publicState('p1')`), not by hand.
+- **Joker choice dialog:** `joker-choice` ("set or run?"; `--joker layoff` = which end of a run).
 - **Other players' moves in flight:** `opp-moves` (a bot's turn in one state:
   stock draw, a new meld, the discard) and `opp-moves-take` (a pile take
   instead of the draw) shoot the table before the turn, frames frozen at
