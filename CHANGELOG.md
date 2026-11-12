@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.135.2] - 2026-11-12
+
+### Changed
+- Abhängigkeiten aktualisiert (automatischer Dependabot-Check): @hono/node-server 2.1.5→2.1.8
+
+### Security
+- WebSocket-Bibliothek `ws` 8.22.2→8.23.0: Der Server begrenzt jetzt die Zahl der automatisch gesendeten Pong-Antworten, die auf den Versand warten (Schutz vor Überlastung durch Ping-Fluten).
+
 ## [2.135.1] - 2026-11-12
 
 ### Added
