@@ -183,6 +183,17 @@
   let queenPrev = null; // facts of the previous state; null = the next one is only a baseline
   // Other players' moves fly (public/table-moves.js reads them, flyTableMove below shows them).
   const tableMoves = window.PikdameTableMoves || null;
+  // Debug view (public/debug-view.js): counters run always, so a report is useful
+  // without the view switched on first. Never critical: every note is caught.
+  const debugView = window.PikdameDebugView || null;
+  let debugStats = null;
+  try { debugStats = debugView ? debugView.createStats(() => performance.now()) : null; } catch (e) { /* optional */ }
+  function debugNote(kind, a, b) {
+    try { if (debugStats) debugStats[kind](a, b); } catch (e) { /* optional */ }
+  }
+  let debugLive = false;  // the view is on
+  let debugDirty = false; // something changed: the panel repaints on its next frame
+  function refreshDebugSoon() { if (debugLive) debugDirty = true; }
   let movesPrev = null; // facts of the previous state; null = the next one is only a baseline
   let oppTurn = null; // the opponent turn in flight (one at a time, never queued)
   // "Züge der Mitspieler" in "Optionen", per device, default on; off = no flights and no sounds.
@@ -376,6 +387,7 @@
     try { renderTower(); renderTowerTile(); } catch (e) { /* dito */ }
     try { arrangeEmoteBar(el('emoteBar')); arrangeEmoteBar(el('resultEmoteBar')); } catch (e) { /* toggle label */ }
     try { renderAccountProgress(); } catch (e) { /* dito */ }
+    try { paintDebugPanel(); } catch (e) { /* the page name is translated */ }
     // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
     // unten gefunden, bevor es jemand melden konnte.
     try { refreshAccountUi(); } catch (e) { /* dito */ }
@@ -1418,6 +1430,7 @@
     const dead = ws;
     ws = null;
     pingSentAt = 0;
+    if (dead) debugNote('closed'); // its own close event is ignored from here on
     stopWatchdog();
     try { if (dead) dead.close(); } catch (e) { /* already gone */ }
     updateNetBanner();
@@ -1506,6 +1519,11 @@
     const sock = new WebSocket(wsUrl());
     ws = sock;
     pingSentAt = 0;
+    // Debug view: every frame sent on this socket is counted in one place.
+    try {
+      const rawSend = sock.send.bind(sock);
+      sock.send = (data) => { debugNote('tx', data); return rawSend(data); };
+    } catch (e) { /* optional */ }
     const connectTimer = setTimeout(() => {
       if (sock === ws && sock.readyState === WebSocket.CONNECTING) abandonSocket({ backoff: true });
     }, CONNECT_TIMEOUT_MS);
@@ -1516,6 +1534,7 @@
     sock.addEventListener('open', () => {
       clearTimeout(connectTimer);
       if (sock !== ws) return;
+      debugNote('opened');
       lastRxAt = Date.now();
       lastActionAt = 0;
       startWatchdog();
@@ -1563,6 +1582,7 @@
     sock.addEventListener('close', () => {
       clearTimeout(connectTimer);
       if (sock !== ws) return;
+      debugNote('closed');
       stopWatchdog();
       scheduleReconnect();
     });
@@ -1585,8 +1605,11 @@
       // der State-Update ginge verloren und die UI bliebe inkonsistent.
       // So wird geloggt und der nächste State heilt die Anzeige.
       try {
-        handleMessage(JSON.parse(ev.data));
+        const msg = JSON.parse(ev.data);
+        debugNote('rx', msg && msg.type, ev.data.length);
+        handleMessage(msg);
       } catch (err) {
+        debugNote('error', `message: ${err && err.message}`);
         console.error('Fehler beim Verarbeiten einer Server-Nachricht:', err);
       }
     });
@@ -2390,62 +2413,68 @@
   let soundedForRound = -1;
 
   function render() {
-    try { updateTutorial(); } catch (e) { /* hints must never break the table */ }
-    try { updateCountdownTimer(); } catch (e) { /* timer must never break the table */ }
-    try { renderCutOverlay(); } catch (e) { /* cut overlay must never break the table */ }
-    try { maybeShowCutReveal(); } catch (e) { /* reveal must never break the table */ }
-    if (!lastState) return;
-
-    const inLobby = lastState.phase === 'lobby';
-    el('lobby').classList.toggle('hidden', !inLobby);
-    el('table').classList.toggle('hidden', inLobby);
-    syncSeasonSnow();
-    syncTableLight();
-    try { syncTableMark(); } catch (e) { /* the felt's mark is decoration, never critical */ }
-    renderPause();
-    try { renderTableOptions(); } catch (e) { /* "Optionen" must never break the table */ }
-
-    if (inLobby) {
-      // Coming back to the lobby (e.g. after a rematch) must clear any result
-      // overlay - otherwise a player who did not click the rematch button keeps
-      // the game-over overlay stuck on top of the lobby and cannot ready up.
-      el('resultOverlay').classList.add('hidden');
-      renderLobby();
-      return;
-    }
-
-    renderTable();
-
-    // Feel: Punkte-Popup (kosmetisch, seq-entdupliziert). Eigene Punkte
-    // steigen über der eigenen Auslagen-Zone auf, fremde am Spieler-Chip.
+    const t0 = performance.now(); // timed for the debug view
     try {
-      const ev = lastState.lastPointsEvent;
-      if (ev && ev.seq !== shownPointsSeq) {
-        shownPointsSeq = ev.seq;
-        spawnPointsPopup(ev);
-      }
-    } catch (e) { /* nie kritisch */ }
+      try { updateTutorial(); } catch (e) { /* hints must never break the table */ }
+      try { updateCountdownTimer(); } catch (e) { /* timer must never break the table */ }
+      try { renderCutOverlay(); } catch (e) { /* cut overlay must never break the table */ }
+      try { maybeShowCutReveal(); } catch (e) { /* reveal must never break the table */ }
+      if (!lastState) return;
 
-    // Feel: Runden-Stempel beim Rundenwechsel (nicht bei Reload/Resume).
-    try {
-      if (lastState.phase === 'playing' && stampKnownRound !== null &&
-          lastState.roundNumber === stampKnownRound + 1) {
-        showRoundStamp(lastState.roundNumber);
-      }
-      if (lastState.phase === 'playing' || lastState.phase === 'roundEnd') {
-        stampKnownRound = lastState.roundNumber;
-      }
-    } catch (e) { /* nie kritisch */ }
+      if (lastState.phase !== 'gameOver') endChartReveal(); // the next match's chart draws itself again
+      const inLobby = lastState.phase === 'lobby';
+      el('lobby').classList.toggle('hidden', !inLobby);
+      el('table').classList.toggle('hidden', inLobby);
+      syncSeasonSnow();
+      syncTableLight();
+      try { syncTableMark(); } catch (e) { /* the felt's mark is decoration, never critical */ }
+      renderPause();
+      try { renderTableOptions(); } catch (e) { /* "Optionen" must never break the table */ }
 
-    if (lastState.phase !== 'gameOver') endChartReveal(); // the next match's chart draws itself again
-    if (lastState.phase === 'roundEnd' || lastState.phase === 'gameOver') {
-      if (soundedForRound !== lastState.roundNumber) {
-        soundedForRound = lastState.roundNumber;
-        sound.roundEnd();
+      if (inLobby) {
+        // Coming back to the lobby (e.g. after a rematch) must clear any result
+        // overlay - otherwise a player who did not click the rematch button keeps
+        // the game-over overlay stuck on top of the lobby and cannot ready up.
+        el('resultOverlay').classList.add('hidden');
+        renderLobby();
+        return;
       }
-      renderResultOverlay();
-    } else {
-      el('resultOverlay').classList.add('hidden');
+
+      renderTable();
+
+      // Feel: Punkte-Popup (kosmetisch, seq-entdupliziert). Eigene Punkte
+      // steigen über der eigenen Auslagen-Zone auf, fremde am Spieler-Chip.
+      try {
+        const ev = lastState.lastPointsEvent;
+        if (ev && ev.seq !== shownPointsSeq) {
+          shownPointsSeq = ev.seq;
+          spawnPointsPopup(ev);
+        }
+      } catch (e) { /* nie kritisch */ }
+
+      // Feel: Runden-Stempel beim Rundenwechsel (nicht bei Reload/Resume).
+      try {
+        if (lastState.phase === 'playing' && stampKnownRound !== null &&
+            lastState.roundNumber === stampKnownRound + 1) {
+          showRoundStamp(lastState.roundNumber);
+        }
+        if (lastState.phase === 'playing' || lastState.phase === 'roundEnd') {
+          stampKnownRound = lastState.roundNumber;
+        }
+      } catch (e) { /* nie kritisch */ }
+
+      if (lastState.phase === 'roundEnd' || lastState.phase === 'gameOver') {
+        if (soundedForRound !== lastState.roundNumber) {
+          soundedForRound = lastState.roundNumber;
+          sound.roundEnd();
+        }
+        renderResultOverlay();
+      } else {
+        el('resultOverlay').classList.add('hidden');
+      }
+    } finally {
+      debugNote('rendered', performance.now() - t0);
+      refreshDebugSoon();
     }
   }
 
@@ -7870,15 +7899,18 @@
     chartReveals.set(wrap, {
       lines: order.map((p) => ({ id: p.id, color: colorOf(p.id), points: history.map((h, i) => [x(i), y(valueAt(h, p))]) })),
       changes: chartApi ? chartApi.leadChanges(history, players.map((p) => p.id)) : [],
+      plot: { x0: PAD.l, x1: W - PAD.r, top: 0, bottom: H - PAD.b + 2 },
     });
+    const endDots = []; // after all lines: the reveal's cover goes between the two
     order.forEach((p) => {
       const color = colorOf(p.id);
       const mine = p.id === meId;
       const points = history.map((h, i) => `${x(i).toFixed(1)},${y(valueAt(h, p)).toFixed(1)}`).join(' ');
       svgParts.push(`<polyline points="${points}" fill="none" stroke="${color}" stroke-width="${mine ? 3 : 1.6}" stroke-linejoin="round" stroke-linecap="round" class="${mine ? 'mine' : 'other'}"/>`);
       const last = history[history.length - 1];
-      svgParts.push(`<circle cx="${x(history.length - 1).toFixed(1)}" cy="${y(valueAt(last, p)).toFixed(1)}" r="${mine ? 4 : 3.2}" fill="${color}" class="endDot"/>`);
+      endDots.push(`<circle cx="${x(history.length - 1).toFixed(1)}" cy="${y(valueAt(last, p)).toFixed(1)}" r="${mine ? 4 : 3.2}" fill="${color}" class="endDot"/>`);
     });
+    svgParts.push(...endDots);
     // Direct end labels, nudged apart so close finishes stay readable.
     const last = history[history.length - 1];
     const labels = players
@@ -12913,61 +12945,224 @@
   } catch (e) { /* optional */ }
   applyTableMark();
 
-  // --- Debug-Overlay (Einstellungen): Gitter + Live-Metriken -----------------
-  // Für Ferndiagnosen von Layout-Fehlern: Ein Screenshot mit aktivem Overlay
-  // enthält alle Viewport-Quellen, die Container-Kanten (farbige Umrandungen)
-  // und ein 10/50px-Gitter zum Nachmessen.
+  // --- Debug view ("Optionen"): grid, outlines, live pages, report -----------
+  // For remote diagnosis: a screenshot shows the container edges and a 10/50 px
+  // grid; the pages show layout, connection, rendering and the table state; the
+  // copy button puts the whole report on the clipboard (docs: debug-view.md).
   const DEBUG_KEY = 'pikdame_debug';
-  let debugTimer = null;
+  const DEBUG_PAGE_KEY = 'pikdame_debug_page';
+  const DEBUG_FOLD_KEY = 'pikdame_debug_fold';
+  const DEBUG_DOCK_KEY = 'pikdame_debug_dock';
+  const DEBUG_DOCKS = ['tr', 'br', 'bl', 'tl']; // corners, clockwise from the default
+  const DEBUG_PAINT_MS = 250;       // values repaint this often ...
+  const DEBUG_PAINT_EVENT_MS = 80;  // ... and this soon after a state, render or resize
+  const DEBUG_PING_MS = 5000;       // round-trip probe while the view is on
+  let debugFrameReq = 0;
+  let debugFallbackTimer = null;
+  let debugPingTimer = null;
+  let debugPaintedAt = 0;
+  let debugLongObs = null;
+  let debugProbe = null;
+  let debugPage = 'layout';
   function debugEnabled() { return storageGet(DEBUG_KEY) === 'on'; }
-  function updateDebugPanel() {
-    if (!debugEnabled()) return;
-    const probe = document.createElement('div');
-    probe.style.cssText = 'position:fixed;height:100dvh;width:0;visibility:hidden;';
-    document.body.appendChild(probe);
-    const dvh = probe.offsetHeight;
-    probe.remove();
-    const cs = getComputedStyle(document.documentElement);
+  function debugPages() { return debugView ? debugView.PAGES : ['layout']; }
+  function debugPageLabel(page) {
+    return { layout: 'Layout', net: L('Netz', 'Network'), render: 'Render', game: L('Spiel', 'Game') }[page] || page;
+  }
+  function debugLayoutMode() {
+    if (window.matchMedia('(orientation: landscape) and (max-height: 540px)').matches) return 'landscape';
+    if (window.matchMedia('(min-width: 1100px)').matches) return 'desktop';
+    return 'portrait';
+  }
+  /** Everything the view knows, as plain data: the panel's pages and the copied report read it. */
+  function buildDebugReport() {
+    const snap = debugStats ? debugStats.snapshot() : {};
+    const root = document.documentElement;
+    const cs = getComputedStyle(root);
+    const css = (name) => cs.getPropertyValue(name).trim() || '0px';
     const app = document.getElementById('app');
     const vv = window.visualViewport;
-    const lines = [
-      `Pik Dame ${el('versionValue') ? el('versionValue').textContent : ''}  ${new Date().toISOString().slice(11, 19)}Z`,
-      `standalone: ${window.matchMedia('(display-mode: standalone)').matches}  dpr: ${window.devicePixelRatio}`,
-      `innerH: ${window.innerHeight}  vv.h: ${vv ? Math.round(vv.height) : '-'}  100dvh: ${dvh}`,
-      `--appvh: ${cs.getPropertyValue('--appvh').trim() || '-'}  #app.h: ${app ? app.clientHeight : '-'}`,
-      `viewport-app delta: ${app ? Math.max(window.innerHeight, dvh) - app.clientHeight : '-'}px`,
-      `safe t/b: ${cs.getPropertyValue('--safe-top').trim() || '0px'} / ${cs.getPropertyValue('--safe-bottom').trim() || '0px'}`,
-      `uiscale: ${document.documentElement.dataset.uiscale || 'normal'}  w: ${window.innerWidth}`,
-      `outlines: app=rot screen=orange handWrap=cyan hand=gelb`,
-    ];
+    if (!debugProbe) {
+      debugProbe = document.createElement('div');
+      debugProbe.style.cssText = 'position:fixed;top:0;left:0;height:100dvh;width:0;visibility:hidden;pointer-events:none;';
+    }
+    if (!debugProbe.isConnected) document.body.appendChild(debugProbe);
+    const dvh = debugProbe.offsetHeight;
+    const screen = document.querySelector('.screen:not(.hidden)');
+    const mem = performance.memory;
+    return {
+      app: 'Pik Dame',
+      version: el('versionValue') ? el('versionValue').textContent : '',
+      at: new Date().toISOString(),
+      lang,
+      userAgent: navigator.userAgent,
+      layout: {
+        mode: debugLayoutMode(),
+        w: window.innerWidth,
+        h: window.innerHeight,
+        dpr: window.devicePixelRatio,
+        vvH: vv ? Math.round(vv.height) : null,
+        dvh,
+        appVh: cs.getPropertyValue('--appvh').trim() || null,
+        appH: app ? app.clientHeight : null,
+        delta: app ? Math.max(window.innerHeight, dvh) - app.clientHeight : null,
+        safeTop: css('--safe-top'), safeBottom: css('--safe-bottom'), safeLeft: css('--safe-left'), safeRight: css('--safe-right'),
+        standalone: window.matchMedia('(display-mode: standalone)').matches,
+        uiScale: root.dataset.uiscale || 'normal',
+        theme: root.getAttribute('data-theme') || null,
+      },
+      net: {
+        ws: ws ? ['connecting', 'open', 'closing', 'closed'][ws.readyState] || '?' : 'none',
+        online: navigator.onLine !== false,
+        reconnectAttempt,
+        ...snap.net,
+      },
+      render: {
+        ...snap.render,
+        domNodes: document.getElementsByTagName('*').length,
+        heapMb: mem && mem.usedJSHeapSize ? Math.round(mem.usedJSHeapSize / 104857.6) / 10 : null,
+      },
+      frames: snap.frames || null,
+      longTasks: snap.longTasks || null,
+      game: {
+        screen: screen ? screen.id : null,
+        session: sessionCode || null,
+        stammtisch: !!stammtischInfo,
+        overlays: Array.from(document.querySelectorAll('.overlay:not(.hidden)'), (n) => n.id || n.className),
+        state: debugView ? debugView.summarizeState(lastState, playerId) : null,
+      },
+      errors: snap.errors || [],
+    };
+  }
+  // The panel's markup is static (index.html); markup of an older page has none: nothing to wire.
+  function wireDebugPanel(panel) {
+    if (panel.dataset.wired || !el('dbgBody')) return;
+    panel.dataset.wired = '1';
+    el('dbgPageBtn').addEventListener('click', () => {
+      const pages = debugPages();
+      setDebugPage(pages[(pages.indexOf(debugPage) + 1) % pages.length]);
+    });
+    el('dbgCopyBtn').addEventListener('click', copyDebugReport);
+    el('dbgFoldBtn').addEventListener('click', () => {
+      const folded = !panel.classList.contains('folded');
+      panel.classList.toggle('folded', folded);
+      storageSet(DEBUG_FOLD_KEY, folded ? 'on' : 'off');
+      paintDebugPanel();
+    });
+    // A tap on the values moves the panel to the next corner: it never has to cover the spot in question.
+    el('dbgBody').addEventListener('click', () => {
+      const dock = DEBUG_DOCKS[(DEBUG_DOCKS.indexOf(panel.dataset.dock) + 1) % DEBUG_DOCKS.length];
+      panel.dataset.dock = dock;
+      storageSet(DEBUG_DOCK_KEY, dock);
+    });
+  }
+  function setDebugPage(page) {
+    debugPage = debugPages().includes(page) ? page : 'layout';
+    storageSet(DEBUG_PAGE_KEY, debugPage);
+    paintDebugPanel();
+  }
+  function paintDebugPanel() {
+    debugDirty = false;
+    debugPaintedAt = performance.now();
     const panel = el('debugPanel');
-    if (panel) panel.textContent = lines.join('\n');
+    const body = el('dbgBody');
+    if (!debugLive || !panel || !body) return;
+    const pages = debugPages();
+    el('dbgPageName').textContent = `${debugPageLabel(debugPage)} ${pages.indexOf(debugPage) + 1}/${pages.length}`;
+    if (panel.classList.contains('folded')) return;
+    const report = buildDebugReport();
+    const lines = debugView ? debugView.pageLines(debugPage, report) : ['debug-view.js missing: reload'];
+    const text = [`Pik Dame ${report.version}  ${report.at.slice(11, 19)}Z`].concat(lines).join('\n');
+    if (body.textContent !== text) body.textContent = text;
+  }
+  function debugTick(t) {
+    debugFrameReq = requestAnimationFrame(debugTick);
+    debugNote('frame', t);
+    const since = t - debugPaintedAt;
+    if (since >= DEBUG_PAINT_MS || (debugDirty && since >= DEBUG_PAINT_EVENT_MS)) paintDebugPanel();
+  }
+  function debugPing() {
+    if (!ws || ws.readyState !== WebSocket.OPEN || document.visibilityState === 'hidden') return;
+    if (pingSentAt || (debugStats && debugStats.pingOpen())) return; // one probe at a time
+    try { ws.send('{"type":"ping"}'); } catch (e) { /* the watchdog deals with a dead socket */ }
+  }
+  function startDebugLive() {
+    stopDebugLive();
+    if (typeof requestAnimationFrame === 'function') debugFrameReq = requestAnimationFrame(debugTick);
+    else debugFallbackTimer = setInterval(paintDebugPanel, 1000);
+    debugPingTimer = setInterval(debugPing, DEBUG_PING_MS);
+    debugPing();
+    // Long tasks exist in Chromium only; elsewhere the page says "n/a".
+    try {
+      const types = (window.PerformanceObserver && PerformanceObserver.supportedEntryTypes) || [];
+      if (types.includes('longtask')) {
+        debugLongObs = new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) debugNote('longTask', entry.duration);
+        });
+        debugLongObs.observe({ type: 'longtask' });
+        debugNote('longTasksWatched');
+      }
+    } catch (e) { debugLongObs = null; }
+  }
+  function stopDebugLive() {
+    if (debugFrameReq && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(debugFrameReq);
+    debugFrameReq = 0;
+    clearInterval(debugFallbackTimer);
+    clearInterval(debugPingTimer);
+    debugNote('framesStopped');
+    try { if (debugLongObs) debugLongObs.disconnect(); } catch (e) { /* optional */ }
+    debugLongObs = null;
+  }
+  // The clipboard API needs https; plain http (a LAN test) falls back to a selection.
+  async function copyDebugReport() {
+    let ok = false;
+    try {
+      const text = debugView.reportText(buildDebugReport());
+      try {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      } catch (e) {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+        document.body.appendChild(area);
+        area.select();
+        ok = document.execCommand('copy');
+        area.remove();
+      }
+    } catch (e) { ok = false; }
+    showToast(ok
+      ? L('Debug-Bericht kopiert.', 'Debug report copied.')
+      : L('Kopieren ist hier nicht möglich.', 'Copying is not available here.'), { priority: true, icon: ok ? 'i-check' : undefined });
   }
   function applyDebugMode() {
-    // KRITISCHE LEKTION (Live-Ausfall): Beim PWA-Start kann kurzzeitig ALTES
-    // Markup (ohne die Debug-Elemente) mit NEUEM Script kombiniert sein -
-    // iOS revalidiert das Start-HTML nicht immer, trotz no-cache. Ein
-    // ungefangener null-Zugriff hier brach den gesamten Init ab, BEVOR
-    // connect() lief: 'Neues Spiel', 'Beitreten' und 'Tutorial' waren tot,
-    // und ausgerechnet die Auto-Update-Selbstheilung (Versions-Stempel ->
-    // Reload) kam nie zum Zug. Ein OPTIONALES Feature darf den kritischen
-    // Startpfad niemals töten: alles hier ist null-sicher und gefangen.
+    // Lesson from a live outage: at a PWA start iOS can combine OLD markup
+    // (without these elements) with the NEW script. An optional feature must
+    // never break the start path, so everything here is null-safe and caught.
     try {
       const on = debugEnabled();
       const grid = el('debugGrid');
       const panel = el('debugPanel');
+      debugLive = on;
       document.documentElement.classList.toggle('debugMode', on);
       if (grid) grid.classList.toggle('hidden', !on);
       if (panel) panel.classList.toggle('hidden', !on);
       const box = document.getElementById('debugCheckbox');
       if (box) box.checked = on;
-      clearInterval(debugTimer);
+      stopDebugLive();
       if (on && panel) {
-        updateDebugPanel();
-        debugTimer = setInterval(updateDebugPanel, 1000);
+        wireDebugPanel(panel);
+        panel.classList.toggle('folded', storageGet(DEBUG_FOLD_KEY) === 'on');
+        const dock = storageGet(DEBUG_DOCK_KEY);
+        panel.dataset.dock = DEBUG_DOCKS.includes(dock) ? dock : DEBUG_DOCKS[0];
+        const page = storageGet(DEBUG_PAGE_KEY);
+        debugPage = debugPages().includes(page) ? page : 'layout';
+        paintDebugPanel();
+        startDebugLive();
       }
     } catch (e) {
-      /* Debug ist Komfort - nie kritisch */
+      /* the debug view is a convenience, never critical */
     }
   }
   function toggleDebugMode() {
@@ -12977,10 +13172,22 @@
   try {
     const dbgBox = el('debugCheckbox');
     if (dbgBox) dbgBox.addEventListener('change', toggleDebugMode);
-    window.addEventListener('resize', () => { if (debugEnabled()) updateDebugPanel(); });
+    window.addEventListener('resize', refreshDebugSoon);
+    window.addEventListener('error', (ev) => {
+      debugNote('error', `${ev.message || 'error'} @ ${String(ev.filename || '').split('/').pop()}:${ev.lineno || 0}`);
+    });
+    window.addEventListener('unhandledrejection', (ev) => {
+      debugNote('error', `unhandled rejection: ${ev.reason && ev.reason.message ? ev.reason.message : ev.reason}`);
+    });
+    // For browser checks (Playwright, ui-shots): the report without the panel, whether the view is on or not.
+    window.pikdameDebug = {
+      report: buildDebugReport,
+      text: () => debugView.reportText(buildDebugReport()),
+      page: (name) => { setDebugPage(name); return debugPage; },
+    };
     applyDebugMode();
   } catch (e) {
-    /* siehe oben: optional bricht nie den Start */
+    /* see above: optional never breaks the start */
   }
 
   let resizeTimer = null;
@@ -12997,12 +13204,6 @@
     if (meldsEl) meldsObs.observe(meldsEl, { childList: true, subtree: true });
     window.addEventListener('resize', updateMeldScrollHint);
   } catch (e) { /* Hinweis-Kante ist Komfort, nie kritisch */ }
-
-  // Debug-Panel: Tipp wechselt oben/unten, damit es keine Diagnose verdeckt.
-  try {
-    const dp = el('debugPanel');
-    if (dp) dp.addEventListener('click', () => dp.classList.toggle('dockBottom'));
-  } catch (e) { /* optional */ }
 
   // --- Studio-Vorspann "Flodex Interactive" ---------------------------------
   // auto = once per device, always = every load, off = never; a tap skips it.

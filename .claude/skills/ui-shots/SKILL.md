@@ -143,6 +143,9 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   (its "Siegesjubel" preview playing, with `--celebration`), `game-settings`
   (the gear at a live engine table: the same sheet with "Dieser Tisch", then
   scrolled to its end; `--state` takes another table), `game-settings-debug`,
+  `table-debug` (the debug view at a live engine table: one shot per page -
+  layout, net, render, game - then folded; prints whether the values run live
+  and what the copy button's toast says),
   `home` (the home dialog at the table, then its forfeit button armed by a
   first tap), `cardback` (the card-back gallery, then a locked back tapped: its
   toast), `tablemark` (the table motif gallery, then a locked motif tapped: its
@@ -208,6 +211,11 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   `--settle 8000` waits that long before it. It never falls at the table.
 - Prints the written PNG paths. Look at them with the Read tool; don't
   just trust that they exist.
+- `--report` writes `<shot>.debug.json` beside every shot: the client's debug
+  report (`window.pikdameDebug.report()`: layout mode and viewport sources,
+  socket counters, `render()` timing, the table state in short, caught JS
+  errors). Read it when a shot puzzles you, before measuring by hand; a
+  `SHOTS_ROOT` checkout older than the hook writes none.
 - `--audit` also checks every shot and writes `<out>/audit.md`: truncated
   text (measured on the text itself), text the screen edge cuts off (outside
   a horizontal scroller), tap targets under 44 px (a hit area
