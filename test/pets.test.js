@@ -37,22 +37,29 @@ test('client mirror: pet.js, the options select and the script order follow game
   const select = html.match(/<select id="petSelect"[^>]*>([\s\S]*?)<\/select>/);
   assert.deepEqual([...select[1].matchAll(/<option value="([^"]+)"/g)].map((m) => m[1]), PET_IDS, 'one option per pet, same order');
   assert.ok(html.indexOf('/pet.js') > 0 && html.indexOf('/pet.js') < html.indexOf('/client.js'), 'pet.js loads before client.js');
-  assert.match(html, /<span class="handLead"><button id="handToggleBtn"[\s\S]*?<\/button><span id="myPet"><\/span><\/span>/, 'my pet has its own place beside the fold button');
+  assert.match(html, /<span class="handLead"><button id="handToggleBtn"[\s\S]*?<\/button><span id="myPet"><\/span><\/span>/, 'its fallback home is beside the fold button');
   assert.match(html, /id="petsCheckbox"/, 'a new animation can be switched off');
-  assert.match(html, /<span id="tablePet"><\/span>\s*<\/div>/, 'and a second home at the end of the piles strip, out of its flow');
+  assert.match(html, /<span id="tablePet"><\/span>\s*<\/div>/, 'its first home is in the piles strip, out of the flow');
 });
 
 test('pet.js: markup only from the list, a safe collar colour and mood, the age as a negative delay', () => {
   assert.equal(Pet.html('dragon'), '');
   assert.equal(Pet.html('none'), '');
   const h = Pet.html('cat', { mood: 'cheer', collar: '#2a78d6', born: 1000, now: 13400 });
-  assert.match(h, /^<span class="pet pet-cat mood-cheer" style="--pet-collar:#2a78d6;--pet-t:-12\.40s"><svg /);
+  assert.match(h, /^<span class="pet pet-cat pose-sit mood-cheer" style="--pet-collar:#2a78d6;--pet-t:-12\.40s"><svg /);
   const odd = Pet.html('cat', { mood: 'x" onclick="alert(1)', collar: 'red;background:url(x)' });
-  assert.match(odd, /class="pet pet-cat mood-idle" style="--pet-collar:#e8454f;/, 'unknown mood and colour fall back');
+  assert.match(odd, /class="pet pet-cat pose-lie mood-idle" style="--pet-collar:#e8454f;/, 'unknown mood and colour fall back');
   assert.doesNotMatch(odd, /onclick|url\(/);
-  for (const part of ['petTail', 'petEyes', 'petEyesShut', 'petEyesHappy', 'petYawn', 'petHeart', 'petZ', 'petCollar', 'petTag']) {
+  for (const part of ['petSit', 'petLie', 'petTail', 'petEyes', 'petEyesShut', 'petEyesHappy', 'petYawn', 'petHeart', 'petZ', 'petCollar', 'petTag']) {
     assert.ok(Pet.CAT_SVG.includes(part), `the cat has its ${part}`);
   }
+});
+
+test('pet.js pose: at rest and asleep it lies, everything else gets it up; getting up is marked once', () => {
+  assert.deepEqual(Pet.MOODS.map((m) => [m, Pet.poseOf(m)]), [['idle', 'lie'], ['alert', 'sit'], ['sleep', 'lie'], ['happy', 'sit'], ['cheer', 'sit'], ['scared', 'sit'], ['yawn', 'sit']]);
+  assert.match(Pet.html('cat', { mood: 'sleep' }), /class="pet pet-cat pose-lie mood-sleep"/);
+  assert.match(Pet.html('cat', { mood: 'alert', rose: true }), /class="pet pet-cat pose-sit mood-alert petRose"/);
+  assert.doesNotMatch(Pet.html('cat', { mood: 'idle', rose: true }), /petRose/, 'lying down again is no rise');
 });
 
 const seat = (id, extra = {}) => ({ id, name: id, isBot: false, connected: true, ...extra });
@@ -179,36 +186,42 @@ function table({ pets = {}, melds = [], turn = 'p1' } = {}) {
   };
 }
 
-test('client: a pet sits at its owner\'s seat, mine on the tray; a tap explains it; the switch hides them all', async (t) => {
+test('client: only my own pet is drawn - lying at rest, up on my turn; a tap explains it; the switch hides it', async (t) => {
   const app = boot();
   t.after(() => app.window.close());
   await new Promise((r) => setTimeout(r, 10));
   const { doc } = app;
   app.emit({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'ABCD' });
-  app.emit({ type: 'state', state: table({ pets: { p1: 'cat', p2: 'cat', b1: 'cat' } }) });
-  const chip = (id) => [...doc.getElementById('opponents').children].find((c) => c.dataset.playerId === id);
-  const annas = chip('p2').querySelector('.opName > .pet.pet-cat');
-  assert.ok(annas, 'Anna\'s cat is on her chip\'s name row');
-  assert.ok(annas.classList.contains('mood-idle'), 'not her turn');
-  assert.equal(chip('b1').querySelector('.pet'), null, 'a bot has none, whatever a state says');
-  const mine = doc.querySelector('#myPet > .pet.pet-cat');
-  assert.ok(mine && mine.classList.contains('mood-alert'), 'mine watches my turn');
-  const atTable = () => doc.querySelectorAll('#opponents .pet, #myPet .pet, #tablePet .pet').length;
-  assert.equal(atTable(), 2);
+  // Not my turn: it lies. (jsdom has no layout, so the pet takes its fallback home in the tray's row.)
+  app.emit({ type: 'state', state: table({ pets: { p1: 'cat', p2: 'cat', b1: 'cat' }, turn: 'p2' }) });
+  const mine = () => doc.querySelector('#myPet > .pet.pet-cat, #tablePet > .pet.pet-cat');
+  const atTable = () => doc.querySelectorAll('#table .pet').length;
+  assert.equal(doc.querySelector('#opponents .pet'), null, 'the other seats\' pets stay away for now');
+  assert.equal(atTable(), 1);
+  assert.ok(mine().classList.contains('pose-lie') && mine().classList.contains('mood-idle'));
+  assert.ok(!mine().classList.contains('petRose'));
 
-  // A tap on her cat: whose it is, on the toast - and the chip's own tap (the meld filter) does not fire.
-  annas.dispatchEvent(new app.window.MouseEvent('click', { bubbles: true }));
+  // My turn: it gets up, once with the little stretch.
+  app.emit({ type: 'state', state: table({ pets: { p1: 'cat', p2: 'cat' }, turn: 'p1' }) });
+  assert.ok(mine().classList.contains('pose-sit') && mine().classList.contains('mood-alert') && mine().classList.contains('petRose'));
+
+  // A tap: the figure large on the toast.
+  mine().dispatchEvent(new app.window.MouseEvent('click', { bubbles: true }));
   const toast = doc.getElementById('toastContainer');
   assert.ok(toast.classList.contains('petCard') && toast.classList.contains('visible'));
-  assert.match(toast.textContent, /Katze von Anna/);
-  assert.ok(toast.querySelector('.pet.pet-cat'), 'the figure large');
-  assert.ok(!chip('p2').classList.contains('meldFilterActive'));
+  assert.match(toast.textContent, /Deine Katze/);
+  assert.ok(toast.querySelector('.pet.pet-cat'));
 
-  // She melds the Queen of Spades: her cat is happy, mine is not on turn any more.
-  const queens = [{ id: 'm1', ownerId: 'p2', type: 'set', rank: 'Q', slots: [{ real: { id: 1, rank: 'Q', suit: 'S' } }, { real: { id: 2, rank: 'Q', suit: 'H' } }, { real: { id: 3, rank: 'Q', suit: 'D' } }] }];
-  app.emit({ type: 'state', state: table({ pets: { p1: 'cat', p2: 'cat' }, melds: queens, turn: 'p2' }) });
-  assert.ok(chip('p2').querySelector('.pet').classList.contains('mood-happy'));
-  assert.ok(doc.querySelector('#myPet > .pet').classList.contains('mood-idle'));
+  // I meld the Queen of Spades: hearts.
+  const queens = [{ id: 'm1', ownerId: 'p1', type: 'set', rank: 'Q', slots: [{ real: { id: 1, rank: 'Q', suit: 'S' } }, { real: { id: 2, rank: 'Q', suit: 'H' } }, { real: { id: 3, rank: 'Q', suit: 'D' } }] }];
+  app.emit({ type: 'state', state: table({ pets: { p1: 'cat' }, melds: queens, turn: 'p1' }) });
+  assert.ok(mine().classList.contains('mood-happy'));
+
+  // A seat without a pet of its own shows none, whatever the others have.
+  app.emit({ type: 'state', state: table({ pets: { p2: 'cat' }, turn: 'p1' }) });
+  assert.equal(atTable(), 0);
+  app.emit({ type: 'state', state: table({ pets: { p1: 'cat' }, turn: 'p1' }) });
+  assert.equal(atTable(), 1);
 
   // "Haustiere am Tisch" off: none is drawn, and the device remembers.
   const box = doc.getElementById('petsCheckbox');
@@ -232,7 +245,7 @@ test('client: the options show the pet choice with its level and a preview; pets
   assert.ok(doc.querySelector('#petPreview .pet.pet-cat'), 'something to look forward to');
   assert.equal(doc.getElementById('petsCheckbox').checked, false);
   app.emit({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'ABCD' });
-  app.emit({ type: 'state', state: table({ pets: { p2: 'cat' } }) });
-  assert.equal(doc.querySelector('#opponents .pet'), null);
+  app.emit({ type: 'state', state: table({ pets: { p1: 'cat' } }) });
+  assert.equal(doc.querySelector('#table .pet'), null);
   assert.deepEqual(app.errors, []);
 });

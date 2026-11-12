@@ -791,8 +791,8 @@
           <!-- Kartenhaus "Ohne Ablage" (#discardPile.towerLocked): a lock on the card; the caption stays. -->
           <div id="discardLock" class="pileLock" aria-hidden="true"><svg class="icon"><use href="#i-lock"/></svg></div>
         </div>
-        <!-- My table pet (public/pet.js) where the piles leave the strip's left end free (portrait);
-             else it sits in the tray's row (#myPet). Out of the flow: the piles stay centred. -->
+        <!-- My table pet (public/pet.js): right of the discard pile, else under the piles (client.js finds the free
+             place), else in the tray's row (#myPet). Out of the flow: the piles stay where they are. -->
         <span id="tablePet"></span>
       </div>
 
@@ -1351,11 +1351,11 @@
                 <!-- Below the button, so a second tap finds it where it was. -->
                 <div id="celebrationPreview" class="celebrationPreview" aria-hidden="true"></div>
               </div>
-              <!-- On the profile like the celebration: it sits at my seat for the whole table (client.js updatePetSetting). -->
+              <!-- On the profile like the celebration (client.js updatePetSetting). -->
               <div id="petItem" class="prefPart">
                 <div class="prefRow">
                   <svg class="icon prefIcon" aria-hidden="true"><use href="#i-paw"/></svg>
-                  <label class="prefText" for="petSelect"><span class="prefLabel">Haustier</span><span class="prefSub" id="petHint">Sitzt an deinem Platz, alle sehen es</span></label>
+                  <label class="prefText" for="petSelect"><span class="prefLabel">Haustier</span><span class="prefSub" id="petHint">Liegt bei dir am Tisch</span></label>
                   <select id="petSelect" class="settingsSelect">
                     <option value="none">Keins</option>
                     <option value="cat">Katze</option>
@@ -1409,10 +1409,10 @@
                 <span class="prefText"><span class="prefLabel">Boss-Effekte</span><span class="prefSub">Auftritt und Treffer im Kartenhaus</span></span>
                 <input type="checkbox" id="bossFxCheckbox" class="settingsCheckbox" />
               </label>
-              <!-- Off: no pets at any seat on this device (client.js setPetsOn). -->
+              <!-- Off: no pet at the table on this device (client.js setPetsOn). -->
               <label class="prefRow" for="petsCheckbox">
                 <svg class="icon prefIcon" aria-hidden="true"><use href="#i-paw"/></svg>
-                <span class="prefText"><span class="prefLabel">Haustiere am Tisch</span><span class="prefSub">Zeigt die Tiere an den Plätzen</span></span>
+                <span class="prefText"><span class="prefLabel">Haustiere am Tisch</span><span class="prefSub">Zeigt dein Haustier neben den Stapeln</span></span>
                 <input type="checkbox" id="petsCheckbox" class="settingsCheckbox" />
               </label>
               <label class="prefRow" for="botQuipsCheckbox">

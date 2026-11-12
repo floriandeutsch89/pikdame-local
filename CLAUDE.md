@@ -133,10 +133,10 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
     im Public-Mode aktiv). Codes nie in die Partien-Historie (per Name
     abrufbar), dort nur ein Flag. `Emotes.js`: EINZIGE Emote-Whitelist (Vertragstest).
   - `Pets.js`: EINZIGE Haustier-Liste (ab Stufe, wie `Celebrations.js`); die Wahl liegt am Profil (nur mit Konto),
-    der Sitz trägt nur die ID. `public/pet.js` zeichnet und bestimmt die Stimmung aus dem State (Orte, keine Zähler);
-    ein Tier liegt NIE auf etwas (Nutzerwunsch): eigener Platz in der Namenszeile des Chips; das eigene links
-    neben den Stapeln, solange dort sichtbar nichts liegt, sonst neben dem Einklapp-Knopf der Handleiste, sonst
-    bleibt es weg. `ui-shots --scenes pets` (auch `--pets-case crowd`, `--ui-scale`) misst das. Rhythmus über `--pet-t`.
+    der Sitz trägt nur die ID. `public/pet.js` zeichnet und bestimmt Stimmung und Pose aus dem State (Orte, keine
+    Zähler): in Ruhe und im Schlaf LIEGT das Tier, sonst sitzt es. Gezeichnet wird vorerst NUR das eigene (Tiere an
+    Gegner-Chips waren zu viel), und es liegt NIE auf etwas: rechts neben dem Ablagestapel, sonst unter den Stapeln
+    (Seitenspalte), sonst neben dem Einklapp-Knopf, sonst gar nicht. `ui-shots --scenes pets` misst das.
   - `BotQuips.js`: EINZIGE Liste der Bot-Spruch-Anlässe; nur die ID geht über
     die Leitung, Texte DE/EN im Client (Vertragstest).
   - `Teams.js`: „2 gegen 2“, Teams über Kreuz per Sitz-Parität; Partie-Akte mit

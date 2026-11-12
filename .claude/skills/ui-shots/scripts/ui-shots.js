@@ -1369,40 +1369,48 @@ async function fanOut() {
           await page.waitForTimeout(200);
           await shot(sc);
         }
-        // Table pets (public/pet.js): a cat at my seat and at the human opponents', then the card a tap opens.
-        // --pets-case crowd: three human opponents with long names, a last card, a dropped connection, the dealer.
-        // Every run measures: a pet must lie on nothing and stay inside its chip / the tray (prints "pets: ...").
+        // Table pets (public/pet.js): my cat beside the piles, then the card a tap on it opens.
+        // --pets-case crowd: a full table of humans with long names, one of them dropped out; --pets-mood asleep|turn.
+        // Every run measures: the pet must lie on nothing and stay inside the piles strip / the tray (prints "pets: ...").
         if (sc === 'pets') {
           let st;
           if (arg('pets-case', 'team') === 'crowd') {
             st = oppTurnStates('draw').before;
             const names = ['Maximilian-Alexander', 'Oma Gerda', 'Wilhelmine'];
             st.players.filter((p) => p.id !== 'p1').forEach((p, i) => {
-              Object.assign(p, { isBot: false, name: names[i], botDifficulty: undefined, pet: 'cat', handCount: i === 0 ? 1 : p.handCount, controlledByBot: i === 2 });
+              Object.assign(p, { isBot: false, name: names[i], botDifficulty: undefined, pet: 'cat', controlledByBot: i === 2 });
               if (i === 1) st.dealerId = p.id;
             });
             st.players.find((p) => p.id === 'p1').pet = 'cat';
-            await page.evaluate(() => { try { localStorage.setItem('pikdame_aid_lowcards', 'on'); } catch (e) { /* blocked */ } });
-            await page.reload(); await page.waitForTimeout(900);
           } else {
             st = teamTableState();
             for (const p of st.players) if (!p.isBot) p.pet = 'cat';
           }
+          // My turn: it sits up. Not my turn: it lies. Away (asleep): it sleeps.
+          const me = st.players.find((p) => p.id === 'p1');
+          if (arg('pets-mood', '') === 'turn') st.currentPlayerId = 'p1';
+          if (arg('pets-mood', '') === 'rest') st.currentPlayerId = st.players.find((p) => p.id !== 'p1').id;
+          if (arg('pets-mood', '') === 'asleep') me.controlledByBot = true;
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
           inject({ type: 'state', state: st });
-          await page.waitForTimeout(1200);
+          await page.waitForTimeout(1300);
           const report = await page.evaluate(() => {
             const r = (e) => { const b = e.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height }; };
             const hit = (a, b) => a.w > 0 && b.w > 0 && a.x < b.x + b.w - 0.5 && b.x < a.x + a.w - 0.5 && a.y < b.y + b.h - 0.5 && b.y < a.y + a.h - 0.5;
             const inside = (a, b) => a.x >= b.x - 0.5 && a.y >= b.y - 0.5 && a.x + a.w <= b.x + b.w + 0.5 && a.y + a.h <= b.y + b.h + 0.5;
             const out = [];
-            const pets = [...document.querySelectorAll('#opponents .pet, #myPet .pet, #tablePet .pet')];
+            const pets = [...document.querySelectorAll('#table .pet')];
             for (const pet of pets) {
               const pr = r(pet);
-              const chip = pet.closest('.opponent');
-              const who = chip ? `pet of ${chip.querySelector('.opNameText').textContent}` : `my pet (${pet.closest('#tablePet') ? 'beside the piles' : 'in the tray row'})`;
-              const home = chip ? r(chip) : r(pet.closest('#tablePet') ? document.getElementById('centerPiles') : document.getElementById('handWrapper'));
-              if (!inside(pr, home)) out.push(`${who}: sticks out of its ${chip ? 'chip' : 'tray'}`);
+              const beside = !!pet.closest('#tablePet');
+              const who = pet.closest('#opponents') ? 'a pet on a chip (none should be there)' : `my pet (${beside ? 'beside the piles' : 'in the tray row'}, ${pet.className.match(/pose-\w+/)[0]})`;
+              let home = r(document.getElementById('handWrapper'));
+              if (beside) { // on the table, above the hand tray
+                const t = r(document.getElementById('table'));
+                home = { x: t.x, y: t.y, w: t.w, h: home.y - t.y };
+              }
+              if (pet.closest('#opponents')) out.push(`${who}: lies on a chip`);
+              else if (!inside(pr, home)) out.push(`${who}: sticks out of ${beside ? 'the table above the tray' : 'its tray'}`);
               const leaves = [...document.querySelectorAll('#table *')].filter((e) => !pet.contains(e) && !e.contains(pet) && e.children.length === 0 && e.getClientRects().length);
               const seen = (e) => { // clipped or covered parts do not count: ask the page at the middle of the shared area
                 const er = r(e);
@@ -1411,8 +1419,7 @@ async function fanOut() {
                 return document.elementsFromPoint(cx, cy).includes(e);
               };
               for (const e of leaves) if (hit(pr, r(e)) && seen(e)) out.push(`${who}: lies on <${e.tagName.toLowerCase()} class="${e.getAttribute('class') || ''}"> "${(e.textContent || '').trim().slice(0, 20)}" in ${e.parentElement.id || e.parentElement.getAttribute('class')}`);
-              if (chip) { const n = chip.querySelector('.opNameText'); out.push(`${who}: ${Math.round(pr.w)}px, name shows ${Math.round(n.clientWidth)} of ${Math.round(n.scrollWidth)}px`); }
-              else out.push(`${who}: ${Math.round(pr.w)}px`);
+              out.push(`${who}: ${Math.round(pr.w)}px`);
             }
             return { pets: pets.length, lines: out };
           });
@@ -1421,11 +1428,13 @@ async function fanOut() {
             console.log(await page.evaluate(() => (document.getElementById('petMeasure') || {}).textContent || ''));
           }
           const bad = report.lines.filter((l) => /sticks out|lies on/.test(l));
-          console.log(`pets [${vn}${arg('ui-scale', '') ? ` ${arg('ui-scale', '')}` : ''}, ${arg('pets-case', 'team')}]: ${report.pets} shown, ${bad.length ? 'OVERLAP' : 'no overlap'}\n  ${report.lines.join('\n  ')}`);
-          await shot(`pets${arg('pets-case', 'team') === 'crowd' ? '-crowd' : ''}`);
-          await page.evaluate(() => { const c = document.querySelector('#opponents .pet'); if (c) c.click(); });
-          await page.waitForTimeout(500);
-          if (arg('pets-case', 'team') !== 'crowd') await shot('pets-card');
+          console.log(`pets [${vn}${arg('ui-scale', '') ? ` ${arg('ui-scale', '')}` : ''}, ${arg('pets-case', 'team')}${arg('pets-mood', '') ? ` ${arg('pets-mood', '')}` : ''}]: ${report.pets} shown, ${bad.length ? 'OVERLAP' : 'no overlap'}\n  ${report.lines.join('\n  ')}`);
+          await shot(`pets${arg('pets-case', 'team') === 'crowd' ? '-crowd' : ''}${arg('pets-mood', '') ? `-${arg('pets-mood', '')}` : ''}`);
+          if (!arg('pets-mood', '') && arg('pets-case', 'team') !== 'crowd') {
+            await page.evaluate(() => { const c = document.querySelector('#tablePet .pet, #myPet .pet'); if (c) c.click(); });
+            await page.waitForTimeout(500);
+            await shot('pets-card');
+          }
         }
         // Joker choice dialog over a table: "set or run?" or, with --joker layoff, which end.
         if (sc === 'joker-choice') {

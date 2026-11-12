@@ -13024,20 +13024,20 @@
   } catch (e) { /* Einstellung ist Komfort */ }
 
   // --- Table pets (game/Pets.js, public/pet.js) -------------------------------
-  // The choice lives on the profile (the whole table sees it), the switch
-  // "Haustiere am Tisch" on the device. pet.js draws and names the mood;
-  // here it is placed, kept in rhythm across re-draws and explained on a tap.
+  // The choice lives on the profile, the switch "Haustiere am Tisch" on the device.
+  // pet.js draws and names the mood; here MY pet gets its place (the other seats' pets
+  // stay away for now, the seats still carry them), keeps its rhythm and answers a tap.
   const PETS_KEY = 'pikdame_pets';
-  // Beside the piles: the pet's size and inset there (style.css #tablePet) and the air it keeps to the next thing.
-  const PET_PILE_PX = 36;
-  const PET_PILE_INSET_PX = 14;
-  const PET_PILE_AIR_PX = 8;
-  const PET_MIN_NAME_PX = 28; // less of a name than this beside a pet reads as nothing
+  // Where it may sit, best first: [size px, how the spot is found]. It keeps this much air to the next thing.
+  const PET_AIR_PX = 8;
+  const PET_SIZE_BESIDE_PX = 56; // right of the discard pile
+  const PET_SIZE_BELOW_PX = 48; // under the piles (side column)
   let petsOn = storageGet(PETS_KEY) !== 'off';
-  const petBorn = {}; // seat id -> when its pet first showed (keeps the rhythm)
+  const petBorn = {}; // key -> when the pet first showed (keeps the rhythm)
   const petFx = {}; // seat id -> { mood, until }: a reaction that runs out
   let petTurn = { id: null, since: 0 }; // who is on turn, since when (for the yawn)
   let petTimer = null;
+  let petPose = ''; // the pose last drawn: getting up from lying is shown once
   function myPetChoice() {
     const me = myProfile();
     return (me && me.pet) || 'none';
@@ -13059,13 +13059,13 @@
     const allowed = canPickFavorites();
     sel.disabled = !allowed;
     el('petHint').textContent = allowed
-      ? L('Sitzt an deinem Platz, alle sehen es', 'Sits at your seat for everyone to see')
+      ? L('Liegt bei dir am Tisch', 'Lies beside you at the table')
       : L('Mit Konto wählbar', 'Sign in to choose');
     // The preview shows the first pet there is, also while it is still locked: something to look forward to.
     const shown = PET_LIST.find((x) => x.id === sel.value && x.id !== 'none') || PET_LIST.find((x) => x.id !== 'none');
     const mine = sel.value !== 'none';
     const text = mine
-      ? L('Tippt jemand am Tisch auf dein Haustier, sieht er, wem es gehört.', 'When someone at the table taps your pet, they see whose it is.')
+      ? L('Sie liegt neben deinem Ablagestapel, richtet sich auf, wenn du dran bist, und freut sich mit dir.', 'It lies beside your discard pile, sits up when it is your turn and is happy with you.')
       : level < shown.level
         ? L(`Ab Stufe ${shown.level} zieht sie bei dir ein.`, `It moves in with you at level ${shown.level}.`)
         : L('Wartet darauf, an deinen Platz zu dürfen.', 'Waiting to come to your seat.');
@@ -13077,7 +13077,7 @@
     if (!petBorn[key]) petBorn[key] = Date.now();
     return petBorn[key];
   }
-  /** "Haustiere am Tisch": off, no pet is drawn at any seat on this device. */
+  /** "Haustiere am Tisch": off, no pet is drawn on this device. */
   function setPetsOn(on) {
     petsOn = on;
     storageSet(PETS_KEY, on ? 'on' : 'off');
@@ -13096,98 +13096,97 @@
     const now = Date.now();
     return petApi.mood(lastState, seatId, { fx: petFx[seatId], turnMs: petTurn.id === seatId ? now - petTurn.since : 0, now });
   }
-  function petMarkup(seat) {
-    return petApi.html(seat.pet, { mood: petMoodOf(seat.id), collar: playerColor(seat.id), born: petBornOf(seat.id) });
-  }
-  /** Whose pet this is and how to get one - the answer to "I want that too". */
+  /** A tap on my pet: the figure large, and a word about it. */
   function showPetCard(seat) {
     const pt = PET_LIST.find((x) => x.id === seat.pet);
     if (!pt || !petApi) return;
-    const mine = seat.id === playerId;
-    const title = mine ? L(`Deine ${pt.de}`, `Your ${pt.en.toLowerCase()}`) : L(`${pt.de} von ${seat.name}`, `${seat.name}'s ${pt.en.toLowerCase()}`);
-    const how = mine || myLevel() >= pt.level
-      ? L('Unter „Optionen“ wählst du, ob sie mit an den Tisch kommt.', 'Under "Options" you choose whether it comes to the table.')
-      : L(`Haustiere gibt es ab Stufe ${pt.level}. Du bist auf Stufe ${myLevel()}.`, `Pets unlock at level ${pt.level}. You are at level ${myLevel()}.`);
     showToast('', {
       duration: 4200, cls: 'petCard', priority: true, // asked for by a tap: it shows, whatever else is up
       html: `${petApi.html(seat.pet, { mood: 'happy', collar: playerColor(seat.id), born: petBornOf(seat.id) })}` +
-        `<span class="petCardText"><b>${escapeHtml(title)}</b><span>${escapeHtml(how)}</span></span>`,
+        `<span class="petCardText"><b>${escapeHtml(L(`Deine ${pt.de}`, `Your ${pt.en.toLowerCase()}`))}</b>` +
+        `<span>${escapeHtml(L('Unter „Optionen“ wählst du, ob sie mit an den Tisch kommt.', 'Under "Options" you choose whether it comes to the table.'))}</span></span>`,
     });
   }
   /**
-   * Is the left end of the piles strip free for my pet? Only while nothing lies in that corner:
-   * not a pile or the Kartenhaus card, not a card of the hand or of a meld (large type lifts the fan up there).
+   * A free place for my pet beside the piles, or null: right of the discard pile (portrait),
+   * else under the piles (the side column of landscape and desktop). Free means: on the table,
+   * above the hand tray and, point by point, nothing visible there but the table itself (what is
+   * scrolled away under the strip does not count, what the fan lifts up there does).
    */
-  function pilesHavePetRoom() {
+  function petSpotInPiles() {
     const strip = el('centerPiles');
     const box = strip.getBoundingClientRect();
-    if (!box.width || box.height < PET_PILE_PX + PET_PILE_INSET_PX) return false; // no layout, or a strip too low
-    // What is really there counts, not what is scrolled away under the strip: ask the page point by point.
-    if (typeof document.elementFromPoint !== 'function') return false;
-    const left = box.left + PET_PILE_INSET_PX - PET_PILE_AIR_PX;
-    const top = box.bottom - PET_PILE_INSET_PX - PET_PILE_PX - PET_PILE_AIR_PX;
-    const side = PET_PILE_PX + PET_PILE_AIR_PX * 2;
-    const mine = el('tablePet');
-    for (let ix = 0; ix <= 4; ix++) {
-      for (let iy = 0; iy <= 4; iy++) {
-        const hit = document.elementFromPoint(left + (side * ix) / 4, Math.min(top + (side * iy) / 4, box.bottom - 1));
-        if (hit && hit !== strip && !mine.contains(hit) && hit.id !== 'table') return false;
+    const table = el('table').getBoundingClientRect();
+    const tray = el('handWrapper').getBoundingClientRect();
+    const pileEl = el('discardPile');
+    const face = el('discardTopCard').getBoundingClientRect();
+    if (!box.width || !face.width || typeof document.elementFromPoint !== 'function') return null; // no layout (hidden table)
+    const own = el('tablePet');
+    const pad = PET_AIR_PX;
+    const free = (x, y, size) => {
+      if (x - pad < table.left || x + size + pad > table.right || y - pad < table.top || y + size + pad > tray.top) return false;
+      for (let ix = 0; ix <= 4; ix++) {
+        for (let iy = 0; iy <= 4; iy++) {
+          const hit = document.elementFromPoint(x - pad + ((size + pad * 2) * ix) / 4, y - pad + ((size + pad * 2) * iy) / 4);
+          if (hit && hit !== strip && !own.contains(hit) && hit.id !== 'table') return false;
+        }
       }
-    }
-    return true;
+      return true;
+    };
+    // The pile with all that hangs on it (its count sticks out at the top right).
+    const parts = [pileEl, ...pileEl.querySelectorAll('*')].map((n) => n.getBoundingClientRect()).filter((r) => r.width > 0);
+    const right = Math.max(...parts.map((r) => r.right));
+    const lowest = Math.max(...[...strip.children].filter((c) => c !== own).map((c) => c.getBoundingClientRect().bottom));
+    const spots = [
+      // On the floor the pile's card stands on, a little air to its right.
+      { size: PET_SIZE_BESIDE_PX, x: right + pad + 2, y: face.bottom - PET_SIZE_BESIDE_PX },
+      // Side column: under the piles, in line with the discard pile.
+      { size: PET_SIZE_BELOW_PX, x: Math.min(face.left + (face.width - PET_SIZE_BELOW_PX) / 2, table.right - PET_SIZE_BELOW_PX - pad - 2), y: lowest + pad + 6 },
+    ];
+    const spot = spots.find((sp) => free(sp.x, sp.y, sp.size));
+    return spot ? { size: spot.size, left: spot.x - box.left, top: spot.y - box.top } : null;
   }
-  /** Puts every pet at its seat: the opponents' on their chips, mine on the hand tray. Safe to call any time. */
+  /** Puts my pet in its place: beside the piles where there is room, else in the tray's row, else nowhere. Safe to call any time. */
   function renderPets() {
-    const mineBox = el('myPet');
-    if (!mineBox) return;
-    const atTable = petApi && petsOn && lastState && lastState.phase !== 'lobby';
-    const seats = atTable ? (lastState.players || []).filter((p) => !p.isBot && !p.leftGame && petApi.isPet(p.pet)) : [];
-    for (const chip of el('opponents').children) {
-      const seat = seats.find((p) => p.id === chip.dataset.playerId);
-      const old = chip.querySelector('.pet');
-      const row = chip.querySelector('.opName');
-      if (!seat || !row) { if (old) old.remove(); continue; }
-      const mood = petMoodOf(seat.id);
-      if (old && old.dataset.mood === mood) continue;
-      if (old) old.remove();
-      row.insertAdjacentHTML('beforeend', petMarkup(seat));
-      const node = row.lastElementChild;
-      node.dataset.mood = mood;
-      // The name comes first: on a chip too narrow for both, the pet stays away.
-      const nameText = row.querySelector('.opNameText');
-      if (nameText && nameText.clientWidth > 0 && nameText.clientWidth < PET_MIN_NAME_PX && nameText.scrollWidth > nameText.clientWidth) { node.remove(); continue; }
-      node.title = L(`${seat.name} hat ein Haustier`, `${seat.name} has a pet`);
-      node.addEventListener('click', (ev) => { ev.stopPropagation(); showPetCard(seat); });
-    }
-    // My own: beside the piles where their strip leaves room (portrait), else in the tray's row.
-    const me = seats.find((p) => p.id === playerId);
-    const mood = me ? petMoodOf(me.id) : '';
+    const trayBox = el('myPet');
     const pileBox = el('tablePet');
-    const bar = mineBox.closest('.handToolbar');
-    const home = me && pileBox && pilesHavePetRoom() ? pileBox : mineBox;
-    for (const box of [pileBox, mineBox]) {
-      if (!box) continue;
+    if (!trayBox || !pileBox) return; // a stale cached page
+    const atTable = petApi && petsOn && lastState && lastState.phase !== 'lobby';
+    const me = atTable ? (lastState.players || []).find((p) => p.id === playerId && !p.isBot && !p.leftGame && petApi.isPet(p.pet)) : null;
+    const mood = me ? petMoodOf(me.id) : '';
+    const spot = me ? petSpotInPiles() : null;
+    const home = spot ? pileBox : trayBox;
+    for (const box of [pileBox, trayBox]) {
       if (!me || box !== home) { if (box.firstChild) box.innerHTML = ''; box.dataset.mood = ''; continue; }
       if (box.dataset.mood !== mood || !box.firstChild) {
-        box.innerHTML = petMarkup(me);
+        const pose = petApi.poseOf(mood);
+        box.innerHTML = petApi.html(me.pet, { mood, collar: playerColor(me.id), born: petBornOf(me.id), rose: petPose === 'lie' && pose === 'sit' });
+        petPose = pose;
         box.dataset.mood = mood;
         box.onclick = () => showPetCard(me);
       }
     }
+    if (!me) petPose = '';
+    if (spot && pileBox.firstChild) {
+      pileBox.style.left = `${Math.round(spot.left)}px`;
+      pileBox.style.top = `${Math.round(spot.top)}px`;
+      pileBox.firstChild.style.setProperty('--pet-size', `${spot.size}px`);
+    }
+    const bar = trayBox.closest('.handToolbar');
     if (bar) {
       // In the tray's row it shares the width with count, score and round: when it would cut them, it stays away.
-      bar.classList.toggle('hasPet', !!mineBox.firstChild);
+      bar.classList.toggle('hasPet', !!trayBox.firstChild);
       const cut = (e) => e.clientWidth > 0 && e.scrollWidth > e.clientWidth + 1;
       const meta = bar.querySelector('.handMeta');
-      if (mineBox.firstChild && meta && [meta, ...meta.querySelectorAll('*')].some(cut)) {
-        mineBox.innerHTML = '';
-        mineBox.dataset.mood = '';
+      if (trayBox.firstChild && meta && [meta, ...meta.querySelectorAll('*')].some(cut)) {
+        trayBox.innerHTML = '';
+        trayBox.dataset.mood = '';
         bar.classList.remove('hasPet');
       }
     }
-    // Moods that depend on the clock (a reaction running out, the yawn): look again while a pet is there.
-    if (seats.length && !petTimer) petTimer = setInterval(() => { try { renderPets(); } catch (e) { /* decoration */ } }, 700);
-    else if (!seats.length && petTimer) { clearInterval(petTimer); petTimer = null; }
+    // Moods that depend on the clock (a reaction running out, the yawn) and a place that frees up: look again while it is there.
+    if (me && !petTimer) petTimer = setInterval(() => { try { renderPets(); } catch (e) { /* decoration */ } }, 700);
+    else if (!me && petTimer) { clearInterval(petTimer); petTimer = null; }
   }
   try {
     el('petSelect').addEventListener('change', () => {

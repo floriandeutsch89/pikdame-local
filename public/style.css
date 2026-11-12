@@ -1987,6 +1987,18 @@ a.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset
 .pet .petEyes { transform-box: view-box; transform-origin: 32px 21.6px; }
 .pet .petBounce { transform-box: view-box; transform-origin: 32px 58px; }
 .pet .petPupil { transform-box: fill-box; transform-origin: center; transition: transform 0.25s ease; }
+/* Two bodies, one head: lying at rest and asleep, on its haunches for everything else.
+   The head (with the collar) goes where the pose needs it. */
+.pet .petLie { display: none; }
+.pet.pose-lie .petSit { display: none; }
+.pet.pose-lie .petLie { display: inline; }
+.pet .petHeadAt { transform-box: view-box; transform-origin: 32px 24px; }
+.pet.pose-lie .petHeadAt { transform: translate(-10px, 15px); }
+.pet .petShadow { transform-box: fill-box; transform-origin: center; }
+.pet.pose-lie .petShadow { transform: scaleX(1.5); }
+.pet .petLieTail { transform-box: view-box; transform-origin: 51px 52px; }
+.pet .petLieBody { transform-box: view-box; transform-origin: 33px 58px; }
+.pet.pose-lie .petZAt { transform: translate(-15px, 13px); }
 /* What only a mood shows. */
 .pet .petEyesShut, .pet .petEyesHappy, .pet .petYawn, .pet .petHeart, .pet .petZ, .pet .petSpark, .pet .petDrop { opacity: 0; }
 .pet .petEyes, .pet .petMouth { opacity: 1; }
@@ -1996,7 +2008,13 @@ a.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset
 .pet .petBody { animation: petBreath 3.8s ease-in-out var(--pet-t, 0s) infinite; }
 .pet .petEyes { animation: petBlink 5.3s linear var(--pet-t, 0s) infinite; }
 .pet .petEarR { animation: petEar 7.1s ease-in-out var(--pet-t, 0s) infinite; }
+.pet .petLieTail { animation: petLieTail 4.6s ease-in-out var(--pet-t, 0s) infinite alternate; }
+.pet .petLieBody { animation: petBreath 4.2s ease-in-out var(--pet-t, 0s) infinite; }
 @keyframes petTail { from { transform: rotate(-7deg); } to { transform: rotate(9deg); } }
+@keyframes petLieTail { 0%, 60% { transform: rotate(0); } 80% { transform: rotate(-5deg); } 100% { transform: rotate(2deg); } }
+/* Up from lying: the one time it rises, with a little stretch (before the moods, which may take over). */
+.pet.petRose .petBounce { animation: petRise 0.46s cubic-bezier(0.3, 1.5, 0.5, 1) 1; }
+@keyframes petRise { from { transform: translateY(5px) scale(1.14, 0.72); } to { transform: none; } }
 @keyframes petBreath { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.035); } }
 @keyframes petBlink { 0%, 93%, 100% { transform: scaleY(1); } 95.5%, 97% { transform: scaleY(0.08); } }
 @keyframes petEar { 0%, 86%, 100% { transform: rotate(0); } 89% { transform: rotate(13deg); } 92% { transform: rotate(-3deg); } 95% { transform: rotate(9deg); } }
@@ -2009,9 +2027,9 @@ a.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset
 /* Asleep while its owner is away. */
 .pet.mood-sleep .petEyes { opacity: 0; }
 .pet.mood-sleep .petEyesShut { opacity: 1; }
-.pet.mood-sleep .petHead { transform: translateY(2.4px) rotate(5deg); }
-.pet.mood-sleep .petTail { animation-duration: 8s; }
-.pet.mood-sleep .petBody { animation-duration: 5.4s; }
+.pet.mood-sleep .petHeadAt { transform: translate(-10px, 18.4px) rotate(7deg); }
+.pet.mood-sleep .petLieTail { animation: none; }
+.pet.mood-sleep .petLieBody { animation-duration: 5.6s; }
 .pet.mood-sleep .petEarR { animation: none; }
 .pet.mood-sleep .petZ { animation: petZ 2.8s ease-in-out var(--pet-t, 0s) infinite; }
 @keyframes petZ { 0% { opacity: 0; transform: translate(-3px, 4px); } 25%, 70% { opacity: 1; } 100% { opacity: 0; transform: translate(3px, -4px); } }
@@ -2057,26 +2075,20 @@ a.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset
   .pet.mood-happy .petHeartA, .pet.mood-sleep .petZ, .pet.mood-cheer .petSpark { opacity: 1; }
 }
 
-/* A pet has a place of its own in the row it sits in: it never lies on anything.
-   At a seat that is the end of the chip's name row (the name gives way); mine shares
-   the tray's first track with the fold button. Both rows are taller than the pet. */
-.opponent .pet { --pet-size: 24px; margin-left: auto; }
-.opponent .opName:has(> .pet) .opNameText { text-align: left; }
-/* The lead never shrinks (no min-width: 0), so its 1fr track is at least as wide as button and pet:
-   the pet cannot slide under the middle track. It sits on the row's floor, below the progress
-   line that runs along the tray's top edge. */
+/* My pet has a place of its own; it never lies on anything. client.js finds it: right of the
+   discard pile (portrait), else under the piles (side column), else in the tray's row beside
+   the fold button - and sets place and size there. Out of the flow: the piles stay where they are. */
+#tablePet { position: absolute; left: 0; top: 0; display: inline-flex; }
+#tablePet:empty { display: none; }
+/* In the tray's row the lead never shrinks (no min-width: 0), so its track is at least as wide as
+   button and pet; the pet sits on the row's floor, below the progress line along the tray's top edge. */
 .handLead { display: inline-flex; align-items: center; gap: 6px; }
 /* With a pet the outer tracks take only what they need: equal ones would cost the middle its width twice. */
 .handToolbar.hasPet { grid-template-columns: auto minmax(0, 1fr) auto; }
-/* Portrait: the piles strip has its left end free - there my pet has room to be seen
-   (client.js picks this home only while nothing else reaches into that corner). */
-#tablePet { position: absolute; left: 14px; bottom: 6px; display: inline-flex; } /* size and inset: client.js PET_PILE_* */
-#tablePet .pet { --pet-size: 36px; }
-#tablePet:empty { display: none; }
 #myPet { display: inline-flex; align-self: flex-end; }
 #myPet .pet { --pet-size: 22px; }
 #myPet:empty { display: none; }
-/* Tapped: whose it is and how to get one, the figure large. */
+/* Tapped: the figure large, with a word about it. */
 #toastContainer.petCard { display: flex; align-items: center; gap: 12px; width: max-content; max-width: min(340px, 90vw); text-align: left; }
 #toastContainer.petCard .pet { --pet-size: 84px; cursor: default; }
 #toastContainer.petCard .petCardText { display: grid; gap: 3px; min-width: 0; }
@@ -6941,8 +6953,6 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
    The melds got 63px, and 0px once the action bar showed up. This block sits
    at the very end on purpose, so it outranks those later rules. */
 @media (orientation: landscape) and (max-height: 540px) {
-  /* Table pets: the chips are lower here. */
-  .opponent .pet { --pet-size: 20px; }
   /* Statistik: the width is there, the height is not - "Ich" in two columns. */
   #statsOverlay .overlay-card { max-width: 780px; }
   #statsPaneMe:not(.hidden) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; align-items: start; }
