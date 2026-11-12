@@ -264,6 +264,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
    Actions-Secrets), weil `GITHUB_TOKEN`-Pushes keine CI/Release auslösen.
    main braucht Pflicht-Checks, keine Pflicht-Reviews. npm ist gruppiert, weil
    `dependency-check` bei jedem veralteten Paket rot wird.
+8b. **Workflows:** Actions nur per Commit-SHA mit Versions-Kommentar (`@<sha> # v1.2.3`,
+   Dependabot pflegt beides), jeder Job mit `timeout-minutes` (Vertragstest).
 9. **Compose:** alle drei Dateien in `docker/` (yml, ghcr.yml, prod.yml)
    synchron; OWASP-Härtung (cap_drop ALL, read_only, AppArmor, pids_limit)
    ist Pflicht (`docker-smoke` fährt sie hoch). Neue Schreibpfade nur nach
