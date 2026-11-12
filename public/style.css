@@ -981,19 +981,15 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .opponent .opPts { margin-left: auto; }
 .opCards { display: inline-flex; align-items: center; gap: 3px; }
 .opCards .icon { width: 1.15em; height: 1.15em; opacity: 0.75; vertical-align: 0; }
-/* Play aid "low-card warning": a tag on the bottom edge, so the chip keeps
-   its height and the melds below never jump; the text carries the meaning. */
-.opponent.lowCards { border-color: var(--danger); }
-.opLowTag {
+/* A tag on the chip's bottom edge: a player who gave the game up (a bot plays on) or
+   dropped out. On the edge, so the chip keeps its height and the melds below never jump. */
+.opEdgeTag {
   position: absolute; left: 50%; bottom: -9px; z-index: 2; transform: translateX(-50%);
   display: inline-flex; align-items: center; gap: 3px;
-  padding: 1px 7px 1px 5px; border-radius: var(--r-pill);
-  background: var(--danger); color: #2a0a0a; box-shadow: var(--shadow-1);
+  padding: 0 7px; border-radius: var(--r-pill);
+  background: var(--glass-strong); color: var(--text); border: 1px solid var(--glass-border); box-shadow: var(--shadow-1);
   font-size: var(--fs-micro); font-weight: 800; line-height: 1.35; white-space: nowrap;
 }
-.opLowTag .icon { width: 1.1em; height: 1.1em; vertical-align: 0; }
-/* Same slot, calm colours: a player who gave the game up (a bot plays on). */
-.opLowTag.opLeftTag { background: var(--glass-strong); color: var(--text); border: 1px solid var(--glass-border); padding: 0 7px; }
 
 /* Auslagen */
 
@@ -1963,6 +1959,159 @@ a.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset
 .jcCards .card-compact.jcPick { outline: 2px solid var(--accent); outline-offset: -2px; }
 #jokerChoiceCancelBtn { width: 100%; }
 
+/* ============================ TABLE PETS ============================
+   public/pet.js draws the figure; here it lives. A pet never takes room in
+   the layout and never moves anything else. --pet-t carries its age, so a
+   chip that is drawn again keeps the pet's rhythm instead of restarting it. */
+.pet {
+  --pet-size: 30px;
+  display: inline-block; flex: none; width: var(--pet-size); height: var(--pet-size);
+  line-height: 0; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.pet svg { width: 100%; height: 100%; overflow: visible; }
+.pet .petCollar { stroke: var(--pet-collar, #e8454f); }
+.pet .petWhiskers { stroke: rgba(255, 255, 255, 0.82); }
+.pet .petZ { stroke: #cfe3ff; }
+.overlay-card .pet .petWhiskers { stroke: rgba(42, 26, 18, 0.55); }
+.overlay-card .pet .petZ { stroke: #5b7fb8; }
+/* Parts turn around where they are attached. */
+.pet .petTail { transform-box: view-box; transform-origin: 43px 54px; }
+.pet .petBody { transform-box: view-box; transform-origin: 32px 57px; }
+.pet .petHead { transform-box: view-box; transform-origin: 32px 33px; }
+.pet .petEarL { transform-box: view-box; transform-origin: 23px 15px; }
+.pet .petEarR { transform-box: view-box; transform-origin: 41px 15px; }
+.pet .petEyes { transform-box: view-box; transform-origin: 32px 21.6px; }
+.pet .petBounce { transform-box: view-box; transform-origin: 32px 58px; }
+.pet .petPupil { transform-box: fill-box; transform-origin: center; transition: transform 0.25s ease; }
+/* Two bodies, one head: lying at rest and asleep, on its haunches for everything else.
+   The head (with the collar) goes where the pose needs it. */
+.pet .petLie { display: none; }
+.pet.pose-lie .petSit { display: none; }
+.pet.pose-lie .petLie { display: inline; }
+.pet .petHeadAt { transform-box: view-box; transform-origin: 32px 24px; }
+.pet.pose-lie .petHeadAt { transform: translate(-10px, 15px); }
+.pet .petShadow { transform-box: fill-box; transform-origin: center; }
+.pet.pose-lie .petShadow { transform: scaleX(1.5); }
+.pet .petLieTail { transform-box: view-box; transform-origin: 51px 52px; }
+.pet .petLieBody { transform-box: view-box; transform-origin: 33px 58px; }
+.pet.pose-lie .petZAt { transform: translate(-15px, 13px); }
+.pet.pose-lie .petHeart { translate: -10px 14px; }
+/* What only a mood shows. */
+.pet .petEyesShut, .pet .petEyesHappy, .pet .petYawn, .pet .petHeart, .pet .petZ, .pet .petSpark, .pet .petDrop { opacity: 0; }
+.pet .petEyes, .pet .petMouth { opacity: 1; }
+/* Alive at rest: tail, breath, a blink now and then, an ear that hears something.
+   Four different periods, so it never looks like a loop. */
+.pet .petTail { animation: petTail 3.4s ease-in-out var(--pet-t, 0s) infinite alternate; }
+.pet .petBody { animation: petBreath 3.8s ease-in-out var(--pet-t, 0s) infinite; }
+.pet .petEyes { animation: petBlink 5.3s linear var(--pet-t, 0s) infinite; }
+.pet .petEarR { animation: petEar 7.1s ease-in-out var(--pet-t, 0s) infinite; }
+.pet .petLieTail { animation: petLieTail 4.6s ease-in-out var(--pet-t, 0s) infinite alternate; }
+.pet .petLieBody { animation: petBreath 4.2s ease-in-out var(--pet-t, 0s) infinite; }
+@keyframes petTail { from { transform: rotate(-7deg); } to { transform: rotate(9deg); } }
+@keyframes petLieTail { 0%, 60% { transform: rotate(0); } 80% { transform: rotate(-5deg); } 100% { transform: rotate(2deg); } }
+/* Up from lying: the one time it rises, with a little stretch (before the moods, which may take over). */
+.pet.petRose .petBounce { animation: petRise 0.46s cubic-bezier(0.3, 1.5, 0.5, 1) 1; }
+@keyframes petRise { from { transform: translateY(5px) scale(1.14, 0.72); } to { transform: none; } }
+@keyframes petBreath { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.035); } }
+@keyframes petBlink { 0%, 93%, 100% { transform: scaleY(1); } 95.5%, 97% { transform: scaleY(0.08); } }
+@keyframes petEar { 0%, 86%, 100% { transform: rotate(0); } 89% { transform: rotate(13deg); } 92% { transform: rotate(-3deg); } 95% { transform: rotate(9deg); } }
+
+/* Its owner's turn: ears up, pupils wide, the tail quicker. */
+.pet.mood-alert .petPupil { transform: scaleX(1.75); }
+.pet.mood-alert .petEar { transform: translateY(-0.8px); }
+.pet.mood-alert .petTail { animation-duration: 1.7s; }
+
+/* Asleep while its owner is away. */
+.pet.mood-sleep .petEyes { opacity: 0; }
+.pet.mood-sleep .petEyesShut { opacity: 1; }
+.pet.mood-sleep .petHeadAt { transform: translate(-10px, 18.4px) rotate(7deg); }
+.pet.mood-sleep .petLieTail { animation: none; }
+.pet.mood-sleep .petLieBody { animation-duration: 5.6s; }
+.pet.mood-sleep .petEarR { animation: none; }
+.pet.mood-sleep .petZ { animation: petZ 2.8s ease-in-out var(--pet-t, 0s) infinite; }
+@keyframes petZ { 0% { opacity: 0; transform: translate(-3px, 4px); } 25%, 70% { opacity: 1; } 100% { opacity: 0; transform: translate(3px, -4px); } }
+
+/* Its owner melded the Queen of Spades: hearts. */
+.pet.mood-happy .petEyes, .pet.mood-cheer .petEyes { opacity: 0; }
+.pet.mood-happy .petEyesHappy, .pet.mood-cheer .petEyesHappy { opacity: 1; }
+.pet.mood-happy .petHead { animation: petPurr 0.9s ease-in-out var(--pet-t, 0s) infinite alternate; }
+.pet.mood-happy .petTail { animation-duration: 1.1s; }
+.pet.mood-happy .petHeart { animation: petHeart 1.6s ease-out var(--pet-t, 0s) infinite; }
+.pet.mood-happy .petHeartB { animation-delay: calc(var(--pet-t, 0s) + 0.5s); }
+.pet.mood-happy .petHeartC { animation-delay: calc(var(--pet-t, 0s) + 1s); }
+@keyframes petPurr { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+@keyframes petHeart { 0% { opacity: 0; translate: 0 6px; } 20% { opacity: 1; } 100% { opacity: 0; translate: 0 -9px; } }
+
+/* Stroked (a tap, a finger running over it): it purrs in the pose it has - eyes shut in bliss,
+   the head leaning into the hand, hearts from where the head is. Being stroked calms a scared one. */
+.pet.petPetted .petEyes { opacity: 0; }
+.pet.petPetted .petEyesHappy { opacity: 1; }
+.pet.petPetted.mood-sleep .petEyesHappy, .pet.petPetted.mood-yawn .petEyesHappy { opacity: 0; }
+.pet.petPetted .petHead { animation: petPurr 0.9s ease-in-out infinite alternate; }
+.pet.petPetted .petHeart { animation: petHeart 1.6s ease-out infinite; }
+.pet.petPetted .petHeartB { animation-delay: 0.5s; }
+.pet.petPetted .petHeartC { animation-delay: 1s; }
+.pet.petPetted.pose-lie .petHeart { animation-name: petHeartLie; }
+.pet.petPetted.pose-lie .petLieTail { animation-duration: 1.5s; }
+.pet.petPetted.mood-sleep .petZ { animation: none; opacity: 0; }
+.pet.petPetted.mood-scared .petBounce { animation: none; }
+.pet.petPetted.mood-scared .petDrop { opacity: 0; }
+.pet.petPetted.mood-scared .petEar { transform: none; }
+@keyframes petHeartLie { 0% { opacity: 0; translate: -10px 20px; } 20% { opacity: 1; } 100% { opacity: 0; translate: -10px 5px; } }
+
+/* Its owner won the round: it hops, sparks fly. */
+.pet.mood-cheer .petBounce { animation: petHop 0.62s cubic-bezier(0.3, 0, 0.3, 1) var(--pet-t, 0s) infinite; }
+.pet.mood-cheer .petShadow { animation: petHopShadow 0.62s ease-in-out var(--pet-t, 0s) infinite; transform-box: fill-box; transform-origin: center; }
+.pet.mood-cheer .petTail { animation-duration: 0.62s; }
+.pet.mood-cheer .petSpark { animation: petSpark 1.24s ease-in-out var(--pet-t, 0s) infinite; transform-box: fill-box; transform-origin: center; }
+.pet.mood-cheer .petSparkB { animation-delay: calc(var(--pet-t, 0s) + 0.62s); }
+@keyframes petHop { 0%, 100% { transform: translateY(0) scale(1.04, 0.95); } 45% { transform: translateY(-7px) scale(0.97, 1.05); } }
+@keyframes petHopShadow { 0%, 100% { transform: scaleX(1); opacity: 1; } 45% { transform: scaleX(0.7); opacity: 0.55; } }
+@keyframes petSpark { 0%, 100% { opacity: 0; transform: scale(0.3) rotate(0); } 50% { opacity: 1; transform: scale(1) rotate(40deg); } }
+
+/* Caught with the Queen of Spades: ears flat, big eyes, a shiver. */
+.pet.mood-scared .petPupil { transform: scale(2.1, 1.05); }
+.pet.mood-scared .petEarL { transform: rotate(-32deg) translateY(1px); }
+.pet.mood-scared .petEarR { transform: rotate(32deg) translateY(1px); animation: none; }
+.pet.mood-scared .petBounce { animation: petShiver 0.16s linear var(--pet-t, 0s) infinite alternate; }
+.pet.mood-scared .petTail { animation: none; transform: rotate(16deg) scale(1.08); }
+.pet.mood-scared .petEyes { animation: none; }
+.pet.mood-scared .petDrop { opacity: 1; }
+@keyframes petShiver { from { transform: translateX(-0.6px) scaleY(0.95); } to { transform: translateX(0.6px) scaleY(0.95); } }
+
+/* A long turn: one big yawn. */
+.pet.mood-yawn .petEyes, .pet.mood-yawn .petMouth { opacity: 0; }
+.pet.mood-yawn .petEyesShut, .pet.mood-yawn .petYawn { opacity: 1; }
+.pet.mood-yawn .petHead { transform: rotate(-7deg) translateY(-0.8px); transition: transform 0.4s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pet *, .pet.mood-cheer .petBounce, .pet.mood-scared .petBounce { animation: none !important; }
+  .pet.mood-happy .petHeartA, .pet.petPetted .petHeartA, .pet.mood-sleep .petZ, .pet.mood-cheer .petSpark { opacity: 1; }
+}
+
+/* My pet has a place of its own; it never lies on anything. client.js finds it: right of the
+   discard pile (portrait), else under the piles (side column), else in the tray's row beside
+   the fold button - and sets place and size there. Out of the flow: the piles stay where they are. */
+#tablePet { position: absolute; left: 0; top: 0; display: inline-flex; }
+#tablePet:empty { display: none; }
+/* In the tray's row the lead never shrinks (no min-width: 0), so its track is at least as wide as
+   button and pet; the pet sits on the row's floor, below the progress line along the tray's top edge. */
+.handLead { display: inline-flex; align-items: center; gap: 6px; }
+/* With a pet the outer tracks take only what they need: equal ones would cost the middle its width twice. */
+.handToolbar.hasPet { grid-template-columns: auto minmax(0, 1fr) auto; }
+#myPet { display: inline-flex; align-self: flex-end; position: relative; }
+/* Small in the tray's row, yet a full tap target: the hit area grows upward inside the row, never onto the hand. */
+#myPet:not(:empty)::before { content: ''; position: absolute; inset: calc(22px - var(--tap-min)) -6px 0; }
+#myPet .pet { --pet-size: 22px; }
+#myPet:empty { display: none; }
+/* A finger on it strokes it instead of scrolling or selecting anything. */
+#tablePet, #myPet { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* In the options: the one you would take to the table. */
+.petPreview { display: flex; align-items: center; gap: 12px; margin: 6px 0 2px; min-height: 76px; }
+.petPreview:empty { display: none; }
+.petPreview .pet { --pet-size: 72px; cursor: default; }
+.petPreview .petPreviewText { font-size: var(--fs-label); line-height: 1.4; opacity: 0.8; }
+
 /* ============================ LOG ============================ */
 
 /* --- Spielverlauf ----------------------------------------------------------
@@ -2240,6 +2389,7 @@ body.raidActive #toastContainer { margin-top: 132px; }
   animation: unlockPop 0.5s 0.12s var(--ease) both;
 }
 .unlockArt.isCount { font-family: var(--font-display); font-size: var(--fs-lead); font-weight: 800; color: var(--text); }
+.unlockArt .pet { --pet-size: 40px; cursor: inherit; }
 .unlockText { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .unlockEyebrow {
   font-size: var(--fs-micro); font-weight: 800; line-height: 1.2;
@@ -2269,6 +2419,7 @@ body.raidActive #toastContainer { margin-top: 132px; }
   .unlockCard { width: min(100%, 360px); }
   .unlockMain { min-height: 56px; gap: 10px; padding: 6px 2px 6px 10px; }
   .unlockArt { width: 40px; height: 40px; font-size: var(--fs-title); }
+  .unlockArt .pet { --pet-size: 32px; }
   .unlockSub { -webkit-line-clamp: 1; }
 }
 /* Reduced motion: no slide, no sweep, no pop - it fades in and out. */
@@ -6421,7 +6572,6 @@ label.prefRow, button.prefRow, .prefRow label { cursor: pointer; }
 .opponent.isPartner { outline: 2px solid var(--team-ring); outline-offset: -3px; }
 .meldOwnerGroup.teamOwn { box-shadow: inset 0 0 0 2px var(--team-ring); }
 .opponent.isPartner.active { border-color: var(--accent); }
-.opponent.isPartner.lowCards { border-color: var(--danger); }
 .opPartnerTag {
   position: absolute; top: -8px; left: 8px; z-index: 2;
   max-width: calc(100% - 16px);

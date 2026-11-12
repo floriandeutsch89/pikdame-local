@@ -136,6 +136,12 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   - `StammtischStore.js`: Gruppen-Tische `ST…`, per Code abgeschottet (auch
     im Public-Mode aktiv). Codes nie in die Partien-Historie (per Name
     abrufbar), dort nur ein Flag. `Emotes.js`: EINZIGE Emote-Whitelist (Vertragstest).
+  - `Pets.js`: EINZIGE Haustier-Liste (ab Stufe, wie `Celebrations.js`); die Wahl liegt am Profil (nur mit Konto),
+    der Sitz trägt nur die ID. `public/pet.js` zeichnet und bestimmt Stimmung und Pose aus dem State (Orte, keine
+    Zähler): in Ruhe und im Schlaf LIEGT das Tier, sonst sitzt es. Gezeichnet wird vorerst NUR das eigene (Tiere an
+    Gegner-Chips waren zu viel), und es liegt NIE auf etwas: rechts neben dem Ablagestapel, sonst unter den Stapeln
+    (Seitenspalte), sonst neben dem Einklapp-Knopf, sonst gar nicht. `ui-shots --scenes pets` misst das.
+    Tipp/Wisch = Streicheln: setzt nur die Klasse `petPetted` (kein Neuzeichnen, kein Layout), nie ein Toast.
   - `BotQuips.js`: EINZIGE Liste der Bot-Spruch-Anlässe; nur die ID geht über
     die Leitung, Texte DE/EN im Client (Vertragstest).
   - `Teams.js`: „2 gegen 2“, Teams über Kreuz per Sitz-Parität; Partie-Akte mit

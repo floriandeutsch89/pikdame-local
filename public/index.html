@@ -132,6 +132,7 @@
   <script src="/table-moves.js" defer></script>
   <script src="/boss-fight.js" defer></script>
   <script src="/debug-view.js" defer></script>
+  <script src="/pet.js" defer></script>
   <script src="/client.js" defer></script>
   <script>
     /* Runs before the first paint: html.noSplash drops the studio intro that
@@ -278,6 +279,7 @@
     <symbol id="i-pumpkin" viewBox="0 0 24 24"><path d="M12 7.6c-1.3-1.5-4.6-1.6-6.3.3-2.4 2.7-2.1 8.4.6 10.5 1.6 1.2 3.8 1.3 5.7.5 1.9.8 4.1.7 5.7-.5 2.7-2.1 3-7.8.6-10.5-1.7-1.9-5-1.8-6.3-.3z"/><path d="M12 7.6v11.2M9 8.4c-1.1 2.8-1.1 7.2 0 9.8M15 8.4c1.1 2.8 1.1 7.2 0 9.8"/><path d="M12 7.6c0-1.7.7-2.9 2.1-3.6"/></symbol>
     <symbol id="i-mitre" viewBox="0 0 24 24"><path d="M6.5 20.5 6 9.5C7.6 6.6 9.6 4.6 12 3c2.4 1.6 4.4 3.6 6 6.5l-.5 11z"/><path d="M12 3v17.5M6.4 17h11.2M10 10h4"/></symbol>
     <symbol id="i-tree" viewBox="0 0 24 24"><path d="M12 3.5 7 10h2.8L6 15.5h3.5L5.5 20h13l-4-4.5H18L14.2 10H17z"/><path d="M12 20v1.5"/></symbol>
+    <symbol id="i-paw" viewBox="0 0 24 24"><path d="M12 12.6c-2.6 0-4.7 2.1-4.7 4.3 0 1.5 1.2 2.6 2.7 2.6.8 0 1.3-.4 2-.4s1.2.4 2 .4c1.5 0 2.7-1.1 2.7-2.6 0-2.2-2.1-4.3-4.7-4.3z"/><circle cx="6.4" cy="10.8" r="1.7"/><circle cx="9.9" cy="6.6" r="1.7"/><circle cx="14.1" cy="6.6" r="1.7"/><circle cx="17.6" cy="10.8" r="1.7"/></symbol>
     <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3v4.5M12 16.5V21M3 12h4.5M16.5 12H21M5.6 5.6l3 3M15.4 15.4l3 3M5.6 18.4l3-3M15.4 8.6l3-3"/></symbol>
     <symbol id="i-cat" viewBox="0 0 24 24"><path d="M5.2 9.6 4.6 3.8l4.3 3.1a8.4 8.4 0 0 1 6.2 0l4.3-3.1-.6 5.8c.8 1.1 1.2 2.5 1.2 3.9 0 4.1-3.6 6.9-8 6.9s-8-2.8-8-6.9c0-1.4.4-2.8 1.2-3.9z"/><path d="M9.2 12.4v1.2M14.8 12.4v1.2M11.2 15.8h1.6L12 16.7zM2.6 14.6l3.4.6M2.9 17.6l3.2-.9M21.4 14.6l-3.4.6M21.1 17.6l-3.2-.9"/></symbol>
     <symbol id="i-egg" viewBox="0 0 24 24"><path d="M12 3.5c3.3 0 6.2 5 6.2 9.6a6.2 6.2 0 0 1-12.4 0c0-4.6 2.9-9.6 6.2-9.6z"/><path d="M6.2 12.4l2-1.4 1.9 1.4 1.9-1.4 1.9 1.4 1.9-1.4 2 1.4"/></symbol>
@@ -791,6 +793,9 @@
           <!-- Kartenhaus "Ohne Ablage" (#discardPile.towerLocked): a lock on the card; the caption stays. -->
           <div id="discardLock" class="pileLock" aria-hidden="true"><svg class="icon"><use href="#i-lock"/></svg></div>
         </div>
+        <!-- My table pet (public/pet.js): right of the discard pile, else under the piles (client.js finds the free
+             place), else in the tray's row (#myPet). Out of the flow: the piles stay where they are. -->
+        <span id="tablePet"></span>
       </div>
 
       <!-- Tutorial coach: above the hand in portrait, a corner card over the
@@ -827,7 +832,8 @@
         <!-- Progress to 1000 runs along the panel's top edge: no row of its own. -->
         <div id="myScoreBar" class="scoreBar" title="Fortschritt bis 1000 Punkte"><i></i></div>
         <div class="handToolbar">
-          <button id="handToggleBtn" class="sortToggle handToggle tapExpand" title="Karten ein-/ausblenden" aria-label="Karten ein-/ausblenden"><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+          <!-- The fold button and my table pet (public/pet.js) share the first track: the pet has its own place, it never lies on anything. -->
+          <span class="handLead"><button id="handToggleBtn" class="sortToggle handToggle tapExpand" title="Karten ein-/ausblenden" aria-label="Karten ein-/ausblenden"><svg class="icon" aria-hidden="true"><use href="#i-chevron"/></svg></button><span id="myPet"></span></span>
           <!-- Card count + round/dealer. The round line used to be a second
                header row on phones; down here it costs no height. -->
           <span class="handMeta"><span id="handCount" class="handCount" title="Karten auf deiner Hand">–</span><span id="myScore" class="handScore" title="Deine Gesamtpunkte">–</span><span id="roundInfo" class="handRoundInfo"></span></span>
@@ -1347,6 +1353,18 @@
                 <!-- Below the button, so a second tap finds it where it was. -->
                 <div id="celebrationPreview" class="celebrationPreview" aria-hidden="true"></div>
               </div>
+              <!-- On the profile like the celebration (client.js updatePetSetting). -->
+              <div id="petItem" class="prefPart">
+                <div class="prefRow">
+                  <svg class="icon prefIcon" aria-hidden="true"><use href="#i-paw"/></svg>
+                  <label class="prefText" for="petSelect"><span class="prefLabel">Haustier</span><span class="prefSub" id="petHint">Liegt bei dir am Tisch</span></label>
+                  <select id="petSelect" class="settingsSelect">
+                    <option value="none">Keins</option>
+                    <option value="cat">Katze</option>
+                  </select>
+                </div>
+                <div id="petPreview" class="petPreview"></div>
+              </div>
             </div>
           </div>
 
@@ -1376,11 +1394,6 @@
                 <span class="prefText"><span class="prefLabel">Anlege-Hinweis</span><span class="prefSub">Grüne Rahmen an passenden Auslagen</span></span>
                 <input type="checkbox" id="aidLayOffCheckbox" class="settingsCheckbox" />
               </label>
-              <label class="prefRow" for="aidLowCardsCheckbox">
-                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-alert"/></svg>
-                <span class="prefText"><span class="prefLabel">Hinweis bei wenigen Karten</span><span class="prefSub">Markiert Mitspieler mit 1–2 Karten</span></span>
-                <input type="checkbox" id="aidLowCardsCheckbox" class="settingsCheckbox" />
-              </label>
               <!-- Off: the table shows the other players' moves at once and silently (client.js setOppMoves). -->
               <label class="prefRow" for="oppMovesCheckbox">
                 <svg class="icon prefIcon" aria-hidden="true"><use href="#i-group"/></svg>
@@ -1392,6 +1405,12 @@
                 <svg class="icon prefIcon" aria-hidden="true"><use href="#i-swords"/></svg>
                 <span class="prefText"><span class="prefLabel">Boss-Effekte</span><span class="prefSub">Auftritt und Treffer im Kartenhaus</span></span>
                 <input type="checkbox" id="bossFxCheckbox" class="settingsCheckbox" />
+              </label>
+              <!-- Off: no pet at the table on this device (client.js setPetsOn). -->
+              <label class="prefRow" for="petsCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-paw"/></svg>
+                <span class="prefText"><span class="prefLabel">Haustiere am Tisch</span><span class="prefSub">Zeigt dein Haustier neben den Stapeln</span></span>
+                <input type="checkbox" id="petsCheckbox" class="settingsCheckbox" />
               </label>
               <label class="prefRow" for="botQuipsCheckbox">
                 <svg class="icon prefIcon" aria-hidden="true"><use href="#i-chat"/></svg>
@@ -1427,7 +1446,7 @@
               </label>
             </div>
           </div>
-          <p class="prefNote">Alles hier gilt nur für dieses Gerät – außer dem Siegesjubel: Der gehört zu deinem Konto.</p>
+          <p class="prefNote">Alles hier gilt nur für dieses Gerät – außer Siegesjubel und Haustier: Die gehören zu deinem Konto.</p>
         </div>
         <!-- Sticky on desktop (style.css): "Schließen" stays in reach while the sheet scrolls. -->
         <div class="prefFoot"><button id="settingsOverlayCloseBtn" class="btn-secondary">Schließen</button></div>

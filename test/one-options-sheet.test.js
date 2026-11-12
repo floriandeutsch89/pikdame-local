@@ -111,7 +111,7 @@ test('one sheet: the gear opens "Optionen", the old table sheet is gone', async 
   click($('settingsOverlayCloseBtn'));
   assert.ok(!shown('settingsOverlay'));
   // One control per setting: every switch id exists exactly once.
-  for (const id of ['soundCheckbox', 'aidTipsCheckbox', 'aidDiscardCheckbox', 'aidLayOffCheckbox', 'aidLowCardsCheckbox', 'botQuipsCheckbox', 'debugCheckbox']) {
+  for (const id of ['soundCheckbox', 'aidTipsCheckbox', 'aidDiscardCheckbox', 'aidLayOffCheckbox', 'botQuipsCheckbox', 'debugCheckbox']) {
     assert.equal(doc.querySelectorAll(`#${id}`).length, 1, id);
   }
   assert.deepEqual(errors, []);

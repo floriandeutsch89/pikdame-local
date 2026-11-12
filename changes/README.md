@@ -16,7 +16,7 @@ The content is a [Keep a Changelog](https://keepachangelog.com/) body
 ```markdown
 <!-- bump: patch -->
 ### Added
-- Neue Spielhilfe: Hinweis bei wenigen Karten
+- Neue Spielhilfe: Hinweis, ob die oberste Ablagekarte passt
   (eingerückte Zeilen gehören zum Punkt darüber)
 
 ### Fixed
