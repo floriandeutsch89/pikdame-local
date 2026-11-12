@@ -307,6 +307,18 @@ test('client: who already has the level and no pet hears of it once - a card tha
   assert.equal(cards(app).length, 0);
   assert.deepEqual(app.errors, []);
 
+  // Queued on the start screen but due at the table (joined right away): it waits, unsaid, for the start screen.
+  const late = start({});
+  await settle();
+  late.emit({ type: 'profiles', players: [flo()] }); // the intro still plays: the card is queued, not shown
+  late.emit({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'ABCD' });
+  late.emit({ type: 'state', state: { ...table({}), log: [{ text: 'Anna legt aus.' }] } }); // mid-round: no round quote holds the cards back
+  late.doc.getElementById('studioSplash')?.remove();
+  await new Promise((r) => setTimeout(r, 700));
+  assert.equal(cards(late).length, 0);
+  assert.equal(late.window.localStorage.getItem('pikdame_pet_news'), null, 'still to be said');
+  assert.deepEqual(late.errors, []);
+
   // ... nor after a reload; not below the level, not with a pet, not without the account that may choose.
   for (const [storage, profile, account] of [
     [{ pikdame_pet_news: '1' }, flo(), 'Flo'],

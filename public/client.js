@@ -8458,6 +8458,12 @@
     const fold = unlockBurst >= UNLOCK_SINGLES && badges.length > 1 && unlockQueue[0].kind !== 'pet';
     if (fold) unlockQueue.splice(0, unlockQueue.length, ...unlockQueue.filter((it) => it.kind === 'pet'));
     const item = fold ? { kind: 'more', items: badges } : unlockQueue.shift();
+    // Queued on the start screen, due at the table: the pet's card waits for the start screen (it leads to the options).
+    if (item.kind === 'pet' && !el('table').classList.contains('hidden')) {
+      unlockSeen.delete(unlockKey(item));
+      pumpUnlocks();
+      return;
+    }
     if (!fold) unlockBurst += 1;
     showUnlock(item);
   }

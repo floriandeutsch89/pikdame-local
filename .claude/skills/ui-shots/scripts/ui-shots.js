@@ -1638,6 +1638,8 @@ async function fanOut() {
         // unlock-pet (with --signed-in): the level is there, no pet yet - the one-time card on the start screen,
         // then (unlock-pet-open) a tap on it: the options at the pet choice.
         if (sc === 'unlock-pet') {
+          // The first start screen of this run has said it already: forget that, and any table of an earlier scene.
+          await page.evaluate(() => { try { localStorage.removeItem('pikdame_last_session'); localStorage.removeItem('pikdame_pet_news'); } catch (e) { /* blocked */ } });
           await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
           await page.waitForTimeout(2600);
           // Other cards of the mock (a season award) go first: close them until the pet's card is up.
