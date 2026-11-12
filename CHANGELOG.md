@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.134.3] - 2026-11-12
+
+### Changed
+- Joker-Auswahl: Jede Möglichkeit zeigt jetzt die Auslage als Karten, der Platz des Jokers ist markiert. Gefragt wird in der Reihenfolge der Karten, niedrige zuerst. Im Querformat stehen die Möglichkeiten nebeneinander.
+
 ## [2.134.2] - 2026-11-11
 
 ### Added
