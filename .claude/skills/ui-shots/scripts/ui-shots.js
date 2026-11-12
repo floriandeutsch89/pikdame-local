@@ -1171,7 +1171,7 @@ async function fanOut() {
         if (sc === 'settings' || sc === 'settings-aids' || sc === 'settings-music') {
           await page.click('#settingsBtnLobby'); await page.waitForTimeout(400);
           // settings-aids: scrolled to the play aids at the end of the sheet.
-          if (sc === 'settings-aids') await page.evaluate(() => document.getElementById('aidLowCardsCheckbox').scrollIntoView({ block: 'center' }));
+          if (sc === 'settings-aids') await page.evaluate(() => document.getElementById('aidLayOffCheckbox').scrollIntoView({ block: 'center' }));
           if (sc === 'settings-music') await page.evaluate(() => document.getElementById('musicItem').scrollIntoView({ block: 'center' }));
           await shot(sc);
           await page.click('#settingsOverlayCloseBtn');
