@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.135.1] - 2026-11-12
+
+### Added
+- Zurück am Tisch: Warst du kurz weg (anderer Tab, andere App), fasst eine Einblendung zusammen, was die Mitspieler inzwischen ausgelegt, angelegt und abgeworfen haben
+
 ## [2.135.0] - 2026-11-12
 
 ### Changed
