@@ -165,11 +165,44 @@ test('computeEarnedBadges: counter tiers follow the profile, streak/wins tiers o
     gamesWon: 50, gamesPlayed: 100, winStreak: 10, totalQueensLaid: 50, totalHandAus: 5, dailyStreak: 30,
     gamesLost: 100, totalChallenges: 30, totalPuzzlesSolved: 30, totalPerfectPuzzles: 100,
     towerCleared: 10, towerStars: 30, towerCrownedMonths: 12,
+    totalFullSets: 10, totalAceRounds: 20, totalJokerSwaps: 50, totalBlitzRounds: 100, totalShortWins: 20,
+    totalExactFinishes: 10, totalPileTakes: 500, totalTeamWins: 50, totalStammtischGames: 100, totalEarlyGames: 30,
   });
   for (const fam of BADGE_FAMILIES) for (const [id] of fam.tiers) assert.ok(won.includes(id), `winner with maxed counters gets ${id}`);
   const lost = computeEarnedBadges(record(), 'p2', { gamesWon: 50, gamesPlayed: 100, winStreak: 10, totalQueensLaid: 50, dailyStreak: 30 });
   assert.ok(!lost.includes('wins_10') && !lost.includes('streak_5'), 'wins/streak tiers need a win');
   assert.ok(lost.includes('marathon_100') && lost.includes('pd_hunter_50') && lost.includes('daily_30'), 'played/queens/daily tiers do not');
+});
+
+test('matchFacts: short win, exact finish, team win and the early hours come from the record', () => {
+  const { matchFacts } = require('../game/Badges');
+  const round = { winnerId: 'p1', results: {} };
+  const base = { winnerId: 'p1', finalTotals: { p1: 1000, p2: 990 }, rounds: [round, round, round, round, round], finishedAt: Date.parse('2026-10-05T03:30:00Z') };
+  assert.deepEqual(matchFacts(base, 'p1'), { shortWin: true, exactFinish: true, teamWin: false, early: true }, '05:30 German time');
+  assert.deepEqual(matchFacts(base, 'p2'), { shortWin: false, exactFinish: false, teamWin: false, early: true });
+  const long = { ...base, rounds: [round, round, round, round, round, round], finishedAt: Date.parse('2026-10-05T05:00:00Z') };
+  assert.deepEqual(matchFacts(long, 'p1'), { shortWin: false, exactFinish: true, teamWin: false, early: false }, 'six rounds, 07:00');
+  assert.equal(matchFacts({ ...base, rounds: [] }, 'p1').exactFinish, false, 'an unplayed match counts for nothing');
+  // "2 gegen 2": the team total against the team target; both winners get the win.
+  const team = { teamMode: true, teams: [['a', 'c'], ['b', 'd']], winnerId: null, winnerIds: ['a', 'c'], winnerTeam: 0,
+    teamTotals: [2000, 1500], targetScore: 2000, finalTotals: { a: 1000, b: 700, c: 1000, d: 800 }, rounds: [round, round, round, round, round, round] };
+  assert.deepEqual(matchFacts(team, 'c'), { shortWin: false, exactFinish: true, teamWin: true, early: false });
+  assert.deepEqual(matchFacts(team, 'b'), { shortWin: false, exactFinish: false, teamWin: false, early: false }, 'own 1000 is not the team target');
+});
+
+test('PlayerStore: a match books the badge counters; the families read them', async (t) => {
+  const { familyBadges } = require('../game/Badges');
+  const { store } = testPlayerStore(t);
+  const facts = { fullSets: 1, aceRounds: 2, jokerSwaps: 3, blitzRounds: 5, shortWin: true, exactFinish: true, pileTakes: 25, teamWin: true, early: true };
+  await store.recordGameResult([{ name: 'Anna', score: 1000, won: true, facts }]);
+  await store.recordGameResult([{ name: 'Anna', score: 400, won: false, facts: { jokerSwaps: 1 } }]);
+  await store.recordGameResult([{ name: 'Anna', score: 400, won: false }]);
+  const p = await store.getPlayerByName('Anna');
+  assert.deepEqual([p.totalFullSets, p.totalAceRounds, p.totalJokerSwaps, p.totalBlitzRounds, p.totalShortWins, p.totalExactFinishes,
+    p.totalPileTakes, p.totalTeamWins, p.totalEarlyGames], [1, 2, 4, 5, 1, 1, 25, 1, 1]);
+  const got = familyBadges(p, false);
+  for (const id of ['full_set_1', 'aces_1', 'swap_3', 'blitz_5', 'sweep_1', 'exact_1', 'pile_25', 'team_1', 'early_1']) assert.ok(got.includes(id), id);
+  for (const id of ['full_set_3', 'aces_5', 'swap_15', 'pile_100', 'stammtisch_10']) assert.ok(!got.includes(id), `${id} needs more`);
 });
 
 test('computeEarnedBadges: ring run, 13-run, pile glutton, zen trio and no-joker win come from the record', () => {
