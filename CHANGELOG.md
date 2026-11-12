@@ -3,6 +3,19 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.139.0] - 2026-11-13
+
+### Added
+- Debug-Ansicht: „Bericht kopieren“ legt alle Werte als Text in die Zwischenablage,
+  zum Einfügen in eine Fehlermeldung (ohne Anmelde- oder Sitzplatz-Geheimnisse)
+
+### Changed
+- Debug-Ansicht (Optionen → „Debug-Ansicht“) ist jetzt live und hat vier Seiten:
+  Layout, Netz (Laufzeit zum Server, Nachrichten, Datenmenge, Verbindungsabbrüche),
+  Render (Bilder pro Sekunde, Zeichendauer, Fehler) und Spiel (Phase, Runde, wer dran ist, Stapel)
+- Der Seiten-Knopf blättert, der Käfer klappt die Werte ein, ein Tipp auf die Werte
+  schiebt das Feld in die nächste Ecke – alles bleibt auf dem Gerät gespeichert
+
 ## [2.138.0] - 2026-11-12
 
 ### Added
