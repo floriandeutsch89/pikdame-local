@@ -1812,6 +1812,7 @@
       prevTurnPlayerId = lastState.currentPlayerId;
       updateWakeLock();
       maybeShowActionToast();
+      try { maybeShowAwayRecap(); } catch (e) { /* cosmetic */ }
       maybeShowRoundQuote();
       try { detectQueenMoments(); } catch (e) { /* cosmetic */ }
       try { detectTableMoves(); } catch (e) { /* cosmetic */ }
@@ -8202,6 +8203,52 @@
       seenLogLength = log.length;
     }
   }
+  // --- Back at the table: what the others did while the page was hidden ----------
+  // Flights and toasts of that time were never seen. The state carries the last 20 log
+  // lines with the server's time; the newest one seen before leaving is the mark.
+  const AWAY_MIN_MS = 5000; // a glance at a message is no absence
+  const AWAY_LINES = 5;
+  let awayAt = 0; // Date.now() when the page was hidden at a running table
+  let awayMark = 0; // server time of the newest log line seen before that
+  let awayUntil = 0; // back again: until when the recap may still show (a reconnect's state comes late)
+  const logLines = () => (lastState && lastState.log) || [];
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      const log = logLines();
+      awayAt = lastState && lastState.phase === 'playing' ? Date.now() : 0;
+      awayMark = log.length ? log[log.length - 1].t : 0;
+      awayUntil = 0;
+      return;
+    }
+    if (awayAt && Date.now() - awayAt >= AWAY_MIN_MS) {
+      awayUntil = Date.now() + 5000;
+      try { maybeShowAwayRecap(); } catch (e) { /* cosmetic */ }
+    }
+    awayAt = 0;
+  });
+  /** With every state after coming back: two or more lines since the mark become one recap. */
+  function maybeShowAwayRecap() {
+    if (!awayUntil) return;
+    if (Date.now() > awayUntil) { awayUntil = 0; return; }
+    if (!lastState || el('table').classList.contains('hidden')) return;
+    // The round ended meanwhile: its result sheet tells the story.
+    if (lastState.phase !== 'playing') { awayUntil = 0; return; }
+    const log = logLines();
+    // Not worth a line: plain stock draws; who dropped out or came back lives on the chips.
+    const dull = / zieht eine Karte( vom Stapel)?\.$| ist getrennt - kehrt | ist wieder (da|verbunden)/;
+    const fresh = log.filter((e) => e && e.t > awayMark && e.text && !dull.test(e.text));
+    if (fresh.length < 2) return; // one line: the ordinary toast says it
+    awayUntil = 0;
+    const shown = fresh.slice(-AWAY_LINES);
+    // The whole window is new: there was more than the state still carries.
+    const more = fresh.length - shown.length + (fresh.length === log.length && log.length >= 20 ? 1 : 0);
+    showToast('', {
+      priority: true, duration: 7000,
+      html: `<b class="recapHead">${escapeHtml(L('Seit du weg warst', 'While you were away'))}</b>` +
+        shown.map((e) => `<span class="recapLine">${escapeHtml(trs(e.text))}</span>`).join('') +
+        (more ? `<span class="recapLine recapMore">${escapeHtml(L('… und mehr im Protokoll', '… and more in the log'))}</span>` : ''),
+    });
+  }
   let toastTimer = null;
   let toastAfterIntro = null; // held back while a boss entrance plays
   let toastLockUntil = 0; // priority toasts lock the container
@@ -8217,7 +8264,10 @@
     const duration = opts.duration || 4000;
     if (opts.priority) toastLockUntil = now + duration;
     const container = el('toastContainer');
-    setIconText(container, text, opts.icon);
+    // opts.html: a short list on the toast's own surface (the recap after looking away).
+    container.classList.toggle('recap', !!opts.html);
+    if (opts.html) container.innerHTML = opts.html;
+    else setIconText(container, text, opts.icon);
     container.classList.add('visible');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => container.classList.remove('visible'), duration);
