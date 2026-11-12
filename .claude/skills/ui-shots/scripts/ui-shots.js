@@ -1589,6 +1589,48 @@ async function fanOut() {
             await page.waitForTimeout(40);
           };
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+          if (arg('perf', '')) {
+            // --perf <ms>: what opening the sheet costs the page instead of pictures - the main thread's
+            // counters (CDP Performance.getMetrics) over that window, then over the same window right
+            // after it (must be idle), median of --runs openings. SHOTS_ROOT=<main> gives "before".
+            const ms = Number(arg('perf', 3000));
+            const cdp = await ctx.newCDPSession(page);
+            await cdp.send('Performance.enable');
+            const read = async () => Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]));
+            const KEYS = ['LayoutCount', 'RecalcStyleCount', 'LayoutDuration', 'RecalcStyleDuration', 'ScriptDuration', 'TaskDuration'];
+            const diff = (a, b) => KEYS.map((k) => b[k] - a[k]);
+            const runs = [];
+            for (let i = 0; i < Number(arg('runs', 7)); i++) {
+              inject({ type: 'state', state: team ? TEAM_ROUND_END : ROUND_END });
+              await page.waitForTimeout(600);
+              const a = await read();
+              inject({ type: 'state', state: team ? TEAM_GAME_OVER : GAME_OVER_SWING });
+              inject({ type: 'progress', gainedXp: 120, xp: 5440, level: { level: 14 }, record: { played: 43, won: 17 } });
+              if (process.argv.includes('--perf-scroll')) { // below the fold: scroll to the chart so it draws
+                await page.waitForTimeout(60);
+                await page.evaluate(() => { const c = document.querySelector('#resultBody .scoreChart'); if (c) c.scrollIntoView({ block: 'center' }); });
+              }
+              await page.waitForTimeout(ms);
+              const b = await read();
+              await page.waitForTimeout(ms);
+              const c = await read();
+              runs.push({ open: diff(a, b), after: diff(b, c) });
+            }
+            const median = (list) => list.slice().sort((x, y) => x - y)[Math.floor(list.length / 2)];
+            const row = (part) => KEYS.map((k, j) => {
+              const v = median(runs.map((r) => r[part][j]));
+              return `${k} ${/Duration/.test(k) ? `${(v * 1000).toFixed(1)} ms` : v}`;
+            }).join(', ');
+            const left = await page.evaluate(() => {
+              const svg = document.querySelector('#resultBody .scoreChartSvg');
+              return { running: document.getAnimations().filter((x) => x.playState === 'running' && x.effect && svg && svg.contains(x.effect.target)).length,
+                pops: svg ? svg.querySelectorAll('.leadPop').length : 0, willChange: svg ? [...svg.querySelectorAll('*')].filter((n) => getComputedStyle(n).willChange !== 'auto').length : 0 };
+            });
+            console.log(`perf ${vn} ${sc}: opening, ${ms} ms: ${row('open')}`);
+            console.log(`perf ${vn} ${sc}: the ${ms} ms after: ${row('after')}`);
+            console.log(`perf ${vn} ${sc}: left on the chart: ${left.running} running animation(s), ${left.pops} marker(s), ${left.willChange} will-change`);
+            continue;
+          }
           for (const t of arg('film', '300,700').split(',').map(Number)) {
             await open();
             await page.evaluate((ms) => document.getAnimations().forEach((a) => { a.pause(); a.currentTime = ms; }), t);
