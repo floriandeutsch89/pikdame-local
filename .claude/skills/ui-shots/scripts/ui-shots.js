@@ -1631,7 +1631,7 @@ async function fanOut() {
           const delta = (a, b) => Object.fromEntries(KEYS.map((k) => [k, /Count$/.test(k) ? b[k] - a[k] : Math.round((b[k] - a[k]) * 1000)])); // counts, ms
           const reps = Number(arg('reps', 10));
           const idle = Number(arg('idle', 2000));
-          for (const kind of ['meld', 'layoff', 'swap']) {
+          for (const kind of arg('kinds', 'meld,layoff,swap').split(',')) { // --kinds meld: only that move
             const { before, after, ids } = ownMoveStates(kind);
             const round = async () => {
               inject({ type: 'state', state: before });
