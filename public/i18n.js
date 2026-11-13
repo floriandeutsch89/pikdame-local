@@ -27,6 +27,8 @@ window.I18N_STATIC = {
   'Grüne Rahmen an passenden Auslagen': 'Green frames on melds your card fits',
   'Züge der Mitspieler': "Other players' moves",
   'Ihre Karten fliegen über den Tisch': 'Their cards fly across the table',
+  'Eigene Auslage': 'Your own melds',
+  'Deine Karten gleiten in die Auslage': 'Your cards glide into your melds',
   'Boss-Effekte': 'Boss effects',
   'Haustier': 'Pet',
   'Liegt bei dir am Tisch': 'Lies beside you at the table',

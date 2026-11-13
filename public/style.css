@@ -2237,6 +2237,13 @@ a.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset
   pointer-events: none;
 }
 .oppFly.back::after { width: var(--of-mw, 26px); height: var(--of-mw, 26px); font-size: var(--of-mf, 1em); }
+/* My own meld cards (client.js planOwnMove): the same ghost, under every dialog. Its
+   suit mark is the hand card's, fading on the way (a compact card shows none). */
+.card.ownFly { z-index: var(--z-table-fx); }
+.card.ownFly .ownFlyMark {
+  position: absolute; inset: 0; margin: 0;
+  display: flex; align-items: center; justify-content: center;
+}
 @media (prefers-reduced-motion: reduce) { .oppFly { display: none; } }
 
 /* Toast: letzte Aktion */

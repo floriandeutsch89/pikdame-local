@@ -199,6 +199,12 @@
   // "Züge der Mitspieler" in "Optionen", per device, default on; off = no flights and no sounds.
   const OPP_MOVES_KEY = 'pikdame_opp_moves';
   let oppMovesOn = storageGet(OPP_MOVES_KEY) !== 'off';
+  // My own meld cards glide from the hand into my melds: the same machinery, a timeline of its own.
+  let ownTurn = null;
+  // "Eigene Auslage" in "Optionen", per device, default on; off = my cards lie there at once.
+  const OWN_MOVES_KEY = 'pikdame_own_moves';
+  let ownMovesOn = storageGet(OWN_MOVES_KEY) !== 'off';
+  const dragLaid = new Set(); // cards I dropped onto a meld myself: they are there already, no flight
   // The discard pile shows its thickness: up to MAX card edges, one per STEP cards under the
   // top card (style.css #discardTopCard draws them; test/discard-depth.test.js).
   const PILE_DEPTH_MAX = 7;
@@ -1766,7 +1772,7 @@
       sessionCode = msg.sessionCode;
       queenPrev = null; // a (re)join is no queen moment: the state may have jumped
       movesPrev = null; // nor a move: whatever happened meanwhile is not replayed
-      try { endTableMoves(); } catch (e) { /* cosmetic */ }
+      try { endTableMoves(); endOwnMoves(); } catch (e) { /* cosmetic */ }
       storageSet(playerKeyFor(sessionCode), playerId);
       // URL aktualisieren, damit der Link direkt teilbar ist (?session=CODE)
       const url = new URL(window.location.href);
@@ -3162,7 +3168,10 @@
           }
         }
         if (DND_ENABLED && isMine && isMyTurn && lastState.turnPhase === 'meld') {
-          attachDropTarget(group, (cardIds) => layOffToMeld(meld, cardIds));
+          attachDropTarget(group, (cardIds) => {
+            for (const id of cardIds) dragLaid.add(id);
+            layOffToMeld(meld, cardIds);
+          });
         }
         meld.slots.forEach((slot) => {
           const card = slot.real || {
@@ -4799,6 +4808,7 @@
     const isMyTurn = lastState.currentPlayerId === playerId;
     updateTurnTitleNotice(isMyTurn && lastState.phase === 'playing');
     if (!isMyTurn || lastState.turnPhase !== 'meld') return;
+    dragLaid.clear(); // a tap: the cards are still in the hand, they fly
     layOffToMeld(meld, [...selectedCardIds]);
   }
 
@@ -5175,6 +5185,7 @@
   el('confirmMeldBtn').addEventListener('click', () => {
     if (selectedCardIds.size < 3) return;
     sound.meld();
+    dragLaid.clear();
     send({ type: 'layoutMeld', cardIds: [...selectedCardIds] });
     // Reconciled on the next state update - a rejected meld keeps the cards
     // selected so they can be adjusted instead of reselected from scratch.
@@ -8016,6 +8027,7 @@
     const now = tableMoves.facts(lastState, playerId);
     const prev = movesPrev;
     movesPrev = now; // also while switched off: switched on again, nothing old is replayed
+    try { detectOwnMoves(prev, now); } catch (e) { /* cosmetic */ }
     if (!oppMovesOn) return;
     const moves = tableMoves.diff(prev, now, playerId);
     const at = performance.now();
@@ -8043,6 +8055,164 @@
       if (kind === 'meld') melded = true;
       turn.flights.push({ kind, who, card: f.card, id: f.card && f.card.id, meld: f.move.meld, start: f.start, dur: f.dur, cue });
     }
+  }
+
+  // --- My own melds fly ---------------------------------------------------------
+  // A card from my hand that now lies in one of my melds glides there (read from two states, never
+  // from my tap: the server may refuse or merge). The state shows at once; any other move ends it.
+  const OWN_BUDGET_MS = 600; // as one opponent turn: 270 ms a card, a 42 ms stagger
+  const OWN_EASE = 'cubic-bezier(.25, .6, .3, 1)'; // off quickly, settling softly
+  const OWN_MIN_SHOWN_PX = 8; // a landing card cut by the meld area's edge: less of it in view, no flight
+  const OWN_MELT = 0.8; // share of the way from which a ghost fades (into a cut card; a swapped-out joker)
+
+  /** Where a card lies on screen right now: centre, layout width, the fan's tilt, its type sizes. */
+  function cardPose(node) {
+    const r = node.getBoundingClientRect();
+    const w = node.offsetWidth || r.width;
+    if (!w || !r.width) return null;
+    const px = (n) => (n ? parseFloat(getComputedStyle(n).fontSize) : NaN);
+    const mark = node.classList.contains('card-compact') ? null : node.querySelector('.suitMark');
+    return {
+      x: r.left + r.width / 2, y: r.top + r.height / 2, w,
+      deg: parseFloat((/rotate\((-?[\d.]+)deg\)/.exec(node.style.transform) || [])[1]) || 0,
+      corner: px(node.querySelector('.corner')),
+      mark: mark ? { html: mark.innerHTML, font: px(mark), top: parseFloat(getComputedStyle(mark).marginTop) || 0 } : null,
+    };
+  }
+
+  /** Every state, before render (the hand and the melds still show the state before): my cards
+   *  laid since then take off from where they lie; any other move ends what is in the air. */
+  function detectOwnMoves(prev, now) {
+    const moves = ownMovesOn ? tableMoves.own(prev, now, playerId) : [];
+    const goesOn = !!ownTurn && moves.length > 0 && now.round === ownTurn.round && prev.turn === ownTurn.turn;
+    if (ownTurn && !goesOn && tableMoves.changed(prev, now)) endOwnMoves();
+    const dropped = new Set(dragLaid);
+    if (tableMoves.changed(prev, now)) dragLaid.clear();
+    // Nothing flies (reduced motion, a hidden page): nothing to measure, nothing to hide.
+    if (!moves.length || !tableMovesLive()) return;
+    const turn = ownTurn || { own: true, live: true, who: playerId, round: now.round, turn: prev.turn, t0: null, flights: [], timers: [] };
+    const elapsed = turn.t0 === null ? 0 : performance.now() - turn.t0;
+    const hand = el('hand');
+    const view = hand.getBoundingClientRect();
+    const held = new Map([...hand.querySelectorAll('.card')].map((n) => [n.dataset.cardId, n]));
+    const fresh = [];
+    for (const f of tableMoves.plan(moves, { budget: OWN_BUDGET_MS }).flights) {
+      const node = dropped.has(f.card.id) ? null : held.get(String(f.card.id));
+      const from = node ? cardPose(node) : null;
+      // Scrolled out of the fan, or the hand folded away: it has no place to leave from.
+      if (!from || from.x < view.left || from.x > view.right) continue;
+      fresh.push({ kind: 'meld', who: playerId, card: f.card, id: f.card.id, meld: f.move.meld, start: elapsed + f.start, dur: f.dur, cue: null, from });
+    }
+    // A joker my card pushed out of the game: it stays on its slot until the card is nearly there.
+    for (const m of moves) {
+      const by = m.kind === 'out' && fresh.find((f) => f.id === m.by.id);
+      const group = by && [...el('melds').querySelectorAll('.meldGroup')].find((g) => g.dataset.meldId === String(m.meld));
+      const node = group && group.children[m.slot];
+      const at = node && node.classList.contains('joker') ? cardPose(node) : null;
+      if (at) fresh.push({ kind: 'out', who: playerId, id: m.card.id, start: by.start, dur: by.dur, cue: null, from: at, made: meldCardGhost(node), by });
+    }
+    if (!fresh.length) return;
+    turn.flights.push(...fresh);
+    ownTurn = turn;
+  }
+
+  /** Ends my cards in flight at once: ghosts gone, every card where the state has it. */
+  function endOwnMoves() {
+    const turn = ownTurn;
+    ownTurn = null;
+    if (!turn) return;
+    clearTimeout(turn.endTimer);
+    for (const t of turn.timers) clearTimeout(t);
+    const now = performance.now();
+    for (const f of turn.flights) {
+      dropFlight(f);
+      const m = f.queen && queenMoments.get(f.queen);
+      if (m && m.at > now) m.at = now; // her turn waits for no ghost any more
+    }
+  }
+
+  /** "Eigene Auslage": off, my cards lie in the meld at once, as before. */
+  function setOwnMoves(on) {
+    ownMovesOn = on;
+    storageSet(OWN_MOVES_KEY, on ? 'on' : 'off');
+    const box = el('ownMovesCheckbox');
+    if (box) box.checked = on;
+    if (!on) endOwnMoves(); // a card in the air lands at once
+  }
+  {
+    const box = el('ownMovesCheckbox'); // missing in a stale cached page: the setting just waits
+    if (box) {
+      box.checked = ownMovesOn;
+      box.addEventListener('change', () => setOwnMoves(box.checked));
+    }
+  }
+
+  /** My ghost: a copy of the meld card that starts as the hand card looked and lands as the real one
+   *  (transform and opacity only). It measures; the function it returns writes - all reads come first. */
+  function planOwnMove(turn, f, elapsed, planned) {
+    const timing = { duration: f.dur, delay: f.start - elapsed, easing: OWN_EASE, fill: 'both' };
+    const landing = landingNode(f);
+    let made = f.made;
+    let to = null;
+    let cut = false;
+    if (f.kind === 'meld') {
+      if (!landing) return null;
+      const box = cardBox(landing);
+      // The meld area cuts a row at its edge (in landscape it shows little more than one): there
+      // the ghost melts into the card as it arrives. Hardly any of it in view: no flight.
+      const view = el('melds').getBoundingClientRect();
+      const r = landing.getBoundingClientRect();
+      const shown = Math.min(r.bottom, view.bottom) - Math.max(r.top, view.top);
+      if (box.cx < view.left || box.cx > view.right || shown < OWN_MIN_SHOWN_PX) return null;
+      cut = shown < r.height - 0.5;
+      made = meldCardGhost(landing);
+      to = { x: box.cx, y: box.cy, s: box.w / made.w, deg: 0 };
+    }
+    const { g, w, h } = made;
+    if (!w || !h || (f.by && !planned.get(f.by))) return null; // the joker waits only for a card that flies
+    const from = { x: f.from.x, y: f.from.y, s: f.from.w / w, deg: f.from.deg };
+    const pose = (q) => `translate(${q.x - w / 2}px, ${q.y - h / 2}px) rotate(${q.deg}deg) scale(${q.s})`;
+    // The joker out of the game stays put and fades as my card arrives on its slot.
+    const frames = !to
+      ? [{ transform: pose(from), opacity: 1 }, { transform: pose(from), opacity: 1, offset: OWN_MELT }, { transform: pose({ ...from, s: from.s * 0.92 }), opacity: 0 }]
+      : cut
+        ? [{ transform: pose(from), opacity: 1 }, { opacity: 1, offset: OWN_MELT }, { transform: pose(to), opacity: 0 }]
+        : [{ transform: pose(from), opacity: 1 }, { transform: pose(to), opacity: 1 }];
+    g.classList.add('ownFly');
+    g.setAttribute('aria-hidden', 'true');
+    g.style.transform = frames[0].transform;
+    // The index at the hand card's size, the hand card's suit mark on top: both ease into the meld card.
+    const corner = to && g.querySelector('.corner');
+    const k = corner ? f.from.corner / (parseFloat(corner.style.fontSize) * from.s) : NaN;
+    const grow = Number.isFinite(k) && Math.abs(k - 1) > 0.02;
+    if (grow) corner.style.transformOrigin = '0 0';
+    let mark = null;
+    if (to && f.from.mark) {
+      mark = document.createElement('div');
+      mark.className = 'suitMark ownFlyMark';
+      mark.innerHTML = f.from.mark.html;
+      if (Number.isFinite(f.from.mark.font)) mark.style.fontSize = `${f.from.mark.font / from.s}px`;
+      mark.style.paddingTop = `${f.from.mark.top / from.s}px`;
+      g.appendChild(mark);
+    }
+    return () => {
+      document.body.appendChild(g);
+      if (grow) corner.animate([{ transform: `scale(${k})` }, { transform: 'scale(1)' }], timing);
+      if (mark) mark.animate([{ opacity: 1 }, { opacity: 0, offset: 0.55 }, { opacity: 0 }], timing);
+      if (landing && cut) {
+        // A cut card shows as the ghost melts into it: the ghost itself is never cut.
+        f.holdEl = landing;
+        f.hold = landing.animate([{ opacity: 0 }, { opacity: 0, offset: OWN_MELT }, { opacity: 1 }], { ...timing, fill: 'backwards' });
+      } else if (landing) holdLanding(f, landing, f.start + f.dur - elapsed);
+      f.ghost = g;
+      f.anim = g.animate(frames, timing);
+      // It lands: the real card takes its place (never finished in a hidden tab: the end timer drops it).
+      f.anim.onfinish = () => {
+        if (f.hold) f.hold.cancel();
+        g.remove();
+      };
+      return true;
+    };
   }
 
   /** The real card a meld flight lands on, in its slot (the piles never hide a card). */
@@ -8073,8 +8243,9 @@
 
   /** End of renderTable: meld cards rebuilt while their ghost flies stay hidden; then the launch. */
   function holdTableMoves() {
-    const turn = oppTurn;
-    if (!turn) return;
+    for (const turn of [oppTurn, ownTurn]) if (turn) holdTurnMoves(turn);
+  }
+  function holdTurnMoves(turn) {
     if (turn.live && turn.t0 !== null) {
       const elapsed = performance.now() - turn.t0;
       for (const f of turn.flights) {
@@ -8242,7 +8413,7 @@
   /** In the frame after the render (nothing was painted in between): the turn's clock starts, new
    *  meld cards hide where they will land, the ghosts take off, the sounds are timed. */
   function launchTableMoves(turn) {
-    if (turn !== oppTurn) return;
+    if (turn !== oppTurn && turn !== ownTurn) return;
     const now = performance.now();
     if (turn.t0 === null) turn.t0 = now;
     const elapsed = now - turn.t0;
@@ -8252,12 +8423,17 @@
       turn.flights.forEach(dropFlight);
     }
     const sheet = !el('resultOverlay').classList.contains('hidden'); // its fanfare speaks for the round's end
+    // My cards: all measured first, then all put on the page (planOwnMove).
+    const planned = new Map();
+    if (turn.own && turn.live) {
+      for (const f of turn.flights) if (!f.launched && !f.lost) planned.set(f, planOwnMove(turn, f, elapsed, planned));
+    }
     let end = 0;
     for (const f of turn.flights) {
       end = Math.max(end, f.start + f.dur);
       if (f.launched) continue;
       f.launched = true;
-      const flew = turn.live && !f.lost && flyTableMove(turn, f, elapsed);
+      const flew = turn.live && !f.lost && (turn.own ? !!planned.get(f) && planned.get(f)() : flyTableMove(turn, f, elapsed));
       if (!flew) dropFlight(f); // no ghost: the card shows at once, and later renders leave it alone
       // Her head turn in a meld starts when her card lands there (on the pile she turns at once).
       const m = flew && f.kind === 'meld' ? queenMoments.get(f.id) : null;
@@ -8274,7 +8450,10 @@
       }
     }
     clearTimeout(turn.endTimer);
-    turn.endTimer = setTimeout(() => { if (oppTurn === turn) endTableMoves(); }, Math.max(0, end - elapsed) + 80);
+    turn.endTimer = setTimeout(() => {
+      if (oppTurn === turn) endTableMoves();
+      else if (ownTurn === turn) endOwnMoves();
+    }, Math.max(0, end - elapsed) + 80);
   }
 
   /** Whose turn the table marks: while another player's cards are still flying, theirs. The
@@ -8313,7 +8492,7 @@
     }
   }
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { try { endTableMoves(); } catch (e) { /* cosmetic */ } }
+    if (document.hidden) { try { endTableMoves(); endOwnMoves(); } catch (e) { /* cosmetic */ } }
   });
 
   /** "Züge der Mitspieler": off, the table shows their moves at once and silently, as before. */
