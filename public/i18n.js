@@ -28,6 +28,8 @@ window.I18N_STATIC = {
   'Markiert Mitspieler mit 1–2 Karten': 'Marks players with 1–2 cards left',
   'Züge der Mitspieler': "Other players' moves",
   'Ihre Karten fliegen über den Tisch': 'Their cards fly across the table',
+  'Eigene Auslage': 'Your own melds',
+  'Deine Karten gleiten in die Auslage': 'Your cards glide into your melds',
   'Boss-Effekte': 'Boss effects',
   'Auftritt und Treffer im Kartenhaus': 'Entrance and hits in the House of Cards',
   'Kurze Sätze der Bots, selten': 'Rare short lines from the bots',

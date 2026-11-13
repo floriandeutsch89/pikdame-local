@@ -29,6 +29,9 @@
 // settings-celebration (its "Siegesjubel" preview playing; --celebration <id> picks it),
 // opp-moves / opp-moves-take: another player's turn in flight (engine states: a stock draw, a meld
 // and the discard / a pile take instead of the draw), frames frozen at --film ms, then the end,
+// own-meld / own-layoff / own-swap: my own cards in flight from the hand into my melds (a new
+// meld, a lay-off, a joker swapped out), the same way; own-perf: what those moves cost the page
+// (CDP Performance.getMetrics, no shots),
 // game-settings (the gear at a live engine table: the sheet on top, then scrolled to its end),
 // game-settings-debug (that sheet with the debug view on), home (the home dialog at the table, then
 // its forfeit button armed by a first tap),
@@ -539,6 +542,57 @@ function oppTurnSearch(GM, copy, kind) {
   }
   throw new Error(`no opponent turn of kind ${kind}`);
 }
+// own-meld / own-layoff / own-swap: two engine states around ONE action of mine in my meld
+// phase: a new meld of 4+ cards, cards laid off at a meld of mine, a joker swapped out.
+// `ids` are the hand cards it uses (the scene selects them first, as a player would).
+function ownMoveStates(kind) {
+  const GM = require(path.join(ROOT, 'game', 'GameManager'));
+  const Bot = require(path.join(ROOT, 'game', 'Bot'));
+  const copy = (st) => JSON.parse(JSON.stringify(st));
+  const realRandom = Math.random;
+  let s = 20261112;
+  Math.random = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+  try {
+    for (let seed = 1; seed < 600; seed++) {
+      const g = new GM(() => {}, { deckSeed: seed });
+      g.maybeRunBotTurn = () => {}; // the turns are driven here (CLAUDE.md: bot timer off)
+      g.addOrReconnectPlayer('p1', ME);
+      g.fillWithBots();
+      g.startNewRound();
+      for (let guard = 0; guard < 160 && g.phase === 'playing'; guard++) {
+        const cp = g.currentPlayer();
+        if (cp.id !== 'p1' || guard < 8) { g.runBotTurn(cp.id, { forced: !cp.isBot }); continue; }
+        g.drawFromPile('p1');
+        if (g.phase !== 'playing' || g.turnPhase !== 'meld') break;
+        const mine = g.tableMelds.filter((m) => m.ownerId === 'p1');
+        const plan = Bot.planBotMelds(cp.hand, mine);
+        const before = copy(g.publicState('p1'));
+        let ids = null;
+        let r = null;
+        if (kind === 'meld' && mine.length && plan.newMelds[0] && plan.newMelds[0].length >= 4 && cp.hand.length > plan.newMelds[0].length + 1) {
+          ids = plan.newMelds[0].map((c) => c.id);
+          r = g.layoutMeld('p1', ids, {}, { byOrder: false });
+        } else if (kind === 'layoff' && plan.layOffs.length && !plan.newMelds.length && cp.hand.length > 2) {
+          const meldId = plan.layOffs[0].meldId;
+          ids = plan.layOffs.filter((l) => l.meldId === meldId).map((l) => l.card.id);
+          r = ids.length > 1 ? g.layOffCards('p1', meldId, ids) : g.layOffCard('p1', meldId, ids[0]);
+        } else if (kind === 'swap' && plan.jokerSwaps.length && cp.hand.length > 2) {
+          ids = [plan.jokerSwaps[0].card.id];
+          r = g.swapJoker('p1', plan.jokerSwaps[0].meldId, ids[0]);
+        }
+        if (r && r.ok && g.phase === 'playing') {
+          const after = copy(g.publicState('p1'));
+          g.destroy();
+          return { before, after, ids };
+        }
+        if (ids) break; // refused: this deal is spoiled, the next one
+        g.runBotTurn('p1', { forced: true });
+      }
+      g.destroy();
+    }
+  } finally { Math.random = realRandom; }
+  throw new Error(`no own move of kind ${kind}`);
+}
 // table-team: a live "2 gegen 2" table - Oma Gerda is my partner, two bots the other
 // team, mid-match totals (round 3), my draw turn after a few turns. named: my team's name.
 function teamTableState(named = null, rivals = null) {
@@ -813,8 +867,10 @@ async function fanOut() {
       if (!vp) throw new Error(`unknown view ${vn}`);
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, userAgent: UA, deviceScaleFactor: Number(arg('scale', 2)), isMobile: vp.mobile, hasTouch: vp.mobile,
         ...(STILL ? { reducedMotion: 'reduce' } : {}) });
-      await ctx.addInitScript(([me, theme, musicHint, stammtische, uiLang, uiScale, mark]) => {
+      await ctx.addInitScript(([me, theme, musicHint, stammtische, uiLang, uiScale, mark, ownMoves]) => {
         try {
+          // My cards in flight: the how-to tip of my first turns would lie in their way.
+          if (ownMoves) localStorage.setItem('pikdame_tip_seen', '9');
           localStorage.setItem('pikdame_player_name', me);
           if (uiLang) localStorage.setItem('pikdame_lang', uiLang); // --lang en
           if (uiScale) localStorage.setItem('pikdame_ui_scale', uiScale); // --ui-scale large|xlarge
@@ -828,7 +884,7 @@ async function fanOut() {
           if (!musicHint) localStorage.setItem('pikdame_music_hint', '1');
           if (mark) localStorage.setItem('pikdame_table_mark', mark); // --mark <id>
         } catch (e) { /* storage blocked */ }
-      }, [ME, arg('theme', ''), scenes.includes('music-hint'), Math.max(0, Math.min(3, Number(arg('stammtische', 1)))), arg('lang', ''), arg('ui-scale', ''), MARK]);
+      }, [ME, arg('theme', ''), scenes.includes('music-hint'), Math.max(0, Math.min(3, Number(arg('stammtische', 1)))), arg('lang', ''), arg('ui-scale', ''), MARK, scenes.some((sc) => /^own-/.test(sc))]);
       const pageCss = [LIGHT_CSS, vp.mobile ? SAFE_AREA_CSS : ''].filter(Boolean).join('\n');
       if (pageCss) {
         await ctx.addInitScript((cssText) => {
@@ -1413,6 +1469,70 @@ async function fanOut() {
           inject({ type: 'state', state: after });
           await page.waitForTimeout(1200);
           await shot(`${sc}-end`);
+        }
+        // My own cards in flight from the hand into my melds: the table with the cards selected,
+        // frames frozen at --film ms after the state with them laid arrives, then the end.
+        if (/^own-(meld|layoff|swap)$/.test(sc)) {
+          const { before, after, ids } = ownMoveStates(sc.slice(4));
+          const select = async () => {
+            inject({ type: 'state', state: before });
+            await page.waitForTimeout(300);
+            // A DOM click: in a dense fan a card's free strip is a few pixels wide.
+            await page.evaluate((list) => list.forEach((id) => [...document.querySelectorAll('#hand .card')].find((n) => n.dataset.cardId === id).click()), ids);
+            await page.waitForTimeout(250);
+          };
+          await toTable(before);
+          await select();
+          await shot(`${sc}-before`);
+          for (const t of arg('film', '0,90,180,270,360').split(',').map(Number)) {
+            await page.evaluate(() => document.getElementById('clearSelectionBtn').click());
+            await select();
+            await page.evaluate(() => { window.__shotTimeout = window.__shotTimeout || window.setTimeout; window.setTimeout = () => 0; });
+            inject({ type: 'state', state: after });
+            await page.waitForTimeout(40);
+            await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+            await page.evaluate((ms) => document.getAnimations().forEach((a) => { a.pause(); a.currentTime = ms; }), t);
+            await shot(`${sc}-${String(t).padStart(4, '0')}`);
+            await page.evaluate(() => { window.setTimeout = window.__shotTimeout; });
+          }
+          await page.evaluate(() => document.getElementById('clearSelectionBtn').click());
+          await select();
+          inject({ type: 'state', state: after });
+          await page.waitForTimeout(1200);
+          await shot(`${sc}-end`);
+        }
+        // What my own melds cost the page: CDP Performance.getMetrics around --reps (default 10)
+        // rounds of each move (a new meld, a lay-off, a joker swap: selected, laid, landed), then
+        // --idle ms (default 2000) of an idle table. No shots; one JSON line a move. SHOTS_ROOT=<main>
+        // gives the "before".
+        if (sc === 'own-perf') {
+          const cdp = await ctx.newCDPSession(page);
+          await cdp.send('Performance.enable');
+          const KEYS = ['LayoutCount', 'RecalcStyleCount', 'LayoutDuration', 'RecalcStyleDuration', 'ScriptDuration', 'TaskDuration'];
+          const read = async () => Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]));
+          const delta = (a, b) => Object.fromEntries(KEYS.map((k) => [k, /Count$/.test(k) ? b[k] - a[k] : Math.round((b[k] - a[k]) * 1000)])); // counts, ms
+          const reps = Number(arg('reps', 10));
+          const idle = Number(arg('idle', 2000));
+          for (const kind of ['meld', 'layoff', 'swap']) {
+            const { before, after, ids } = ownMoveStates(kind);
+            const round = async () => {
+              inject({ type: 'state', state: before });
+              await page.waitForTimeout(350);
+              await page.evaluate((list) => list.forEach((id) => [...document.querySelectorAll('#hand .card')].find((n) => n.dataset.cardId === id).click()), ids);
+              await page.waitForTimeout(150);
+              inject({ type: 'state', state: after });
+              await page.waitForTimeout(900);
+            };
+            await toTable(before);
+            await round(); // warm: fonts, first layouts
+            const a = await read();
+            for (let i = 0; i < reps; i++) await round();
+            const b = await read();
+            await page.waitForTimeout(idle);
+            const c = await read();
+            const left = await page.evaluate(() => ({ ghosts: document.querySelectorAll('.ownFly, .oppFly, .flyCard').length, animations: document.getAnimations().filter((x) => x.playState === 'running').length }));
+            console.log(`perf ${vn} own-${kind} x${reps}: ${JSON.stringify({ moves: delta(a, b), [`idle${idle}ms`]: delta(b, c), left })}`);
+          }
         }
         if (sc === 'table-queen') {
           // The --state table, then the first opponent lays out a set of queens with the Queen of

@@ -295,6 +295,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   (wie `npm test`), sonst schreiben sie ebenfalls nach `data/`.
   Wer Züge selbst treibt, schaltet den Bot-Timer ab (`g.maybeRunBotTurn = () => {}`):
   er spielt sonst bei langsamer Netz-Antwort (> ~1 s) einen Zug mit (Beweise divergierten).
+- jsdom-Tests mit mehreren Fenstern: jedes in eigener `const` schließen (`t.after`); ein
+  wiederverwendetes `let c` schließt nur das letzte, die Datei hängt bis zum Timeout.
 - Engine: E2E-Botspiele über alle 4 Stufen (Deadlocks, kein Joker-Abwurf,
   kein Doppel-Satz).
 - **Kartenerhaltung** (`test/card-conservation.test.js`): nach JEDEM Zug exakt
@@ -304,7 +306,7 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
   nach wenigen Zügen enden (~1,5 %) — über Rundengrenzen weiterspielen.
 - Client-Heuristiken gegen die Server-Wahrheit fuzzen: keine falschen Positiven.
   Ein Bot-Zug kommt als EIN State (Broadcast pro Tick gebündelt): Diffs zweier
-  States aus Orten ableiten, nie aus Zählern (Pik-Dame-Momente, Gegnerzüge in
+  States aus Orten ableiten, nie aus Zählern (Pik-Dame-Momente, Gegnerzüge und eigene Auslage in
   `table-moves.js`, Engine-Fuzz). Gesammelte States sofort serialisieren wie die
   Leitung: `publicState()` teilt Live-Arrays (`tableMelds`), sonst ändern sie sich nachträglich.
 - Snapshot-Änderungen: Roundtrip `JSON.stringify/parse` + Restore.
