@@ -183,6 +183,17 @@
   let queenPrev = null; // facts of the previous state; null = the next one is only a baseline
   // Other players' moves fly (public/table-moves.js reads them, flyTableMove below shows them).
   const tableMoves = window.PikdameTableMoves || null;
+  // Debug view (public/debug-view.js): counters run always, so a report is useful
+  // without the view switched on first. Never critical: every note is caught.
+  const debugView = window.PikdameDebugView || null;
+  let debugStats = null;
+  try { debugStats = debugView ? debugView.createStats(() => performance.now()) : null; } catch (e) { /* optional */ }
+  function debugNote(kind, a, b) {
+    try { if (debugStats) debugStats[kind](a, b); } catch (e) { /* optional */ }
+  }
+  let debugLive = false;  // the view is on
+  let debugDirty = false; // something changed: the panel repaints on its next frame
+  function refreshDebugSoon() { if (debugLive) debugDirty = true; }
   let movesPrev = null; // facts of the previous state; null = the next one is only a baseline
   let oppTurn = null; // the opponent turn in flight (one at a time, never queued)
   // "Züge der Mitspieler" in "Optionen", per device, default on; off = no flights and no sounds.
@@ -363,6 +374,7 @@
     updateResumeBtn();    // "Weiterspielen (CODE)" - enthaelt einen Wert
     try { updateStudioLogoBtn(); } catch (e) { /* erst spaeter definiert */ }
     try { updateCelebrationSetting(); } catch (e) { /* erst spaeter definiert */ }
+    try { updatePetSetting(); } catch (e) { /* erst spaeter definiert */ }
     try { updateMusicSetting(); } catch (e) { /* erst spaeter definiert */ }
     try { applyCardback(); } catch (e) { /* erst spaeter definiert */ }
     applyTableMark();
@@ -382,6 +394,7 @@
     try { renderTower(); renderTowerTile(); } catch (e) { /* dito */ }
     try { arrangeEmoteBar(el('emoteBar')); arrangeEmoteBar(el('resultEmoteBar')); } catch (e) { /* toggle label */ }
     try { renderAccountProgress(); } catch (e) { /* dito */ }
+    try { paintDebugPanel(); } catch (e) { /* the page name is translated */ }
     // "Angemeldet als ..." steht dauerhaft in der Lobby - vom Vertragstest
     // unten gefunden, bevor es jemand melden konnte.
     try { refreshAccountUi(); } catch (e) { /* dito */ }
@@ -571,6 +584,65 @@
         how: L('Beende eine Partie zwischen 0 und 4 Uhr nachts (deutsche Zeit).', 'Finish a game between midnight and 4 am (German time).') },
       stammtisch_10: { emoji: '🍻', name: L('Stamm\u00adtisch\u00adbruder', 'Table regular'), desc: L('10 Partien am Stammtisch', '10 games at a regulars table'),
         how: L('Spiele 10 Partien an einem Stammtisch.', 'Play 10 games at a regulars table.') },
+      // v2.136: ten counter families (game/Badges.js)
+      full_set_1: { emoji: '🏠', name: L('Volles Haus', 'Full house'), desc: L('Einen Satz mit allen 8 Karten eines Werts ausgelegt', 'Melded a set of all 8 cards of one rank'),
+        how: L('Lege einen Satz mit allen acht Karten eines Werts aus (beide Decks, alle vier Farben).', 'Meld a set of all eight cards of one rank (both decks, all four suits).') },
+      full_set_3: { emoji: '🏠', name: L('Acht\u00aderbahn', 'Eight-pack'), desc: L('3 Sätze mit allen 8 Karten eines Werts ausgelegt', 'Melded 3 sets of all 8 cards of one rank'),
+        how: L('Lege insgesamt 3 Sätze mit allen acht Karten eines Werts aus (beide Decks, alle vier Farben).', 'Meld 3 sets in total of all eight cards of one rank (both decks, all four suits).') },
+      full_set_10: { emoji: '🏠', name: L('Acht auf einen Streich', 'Eight at one blow'), desc: L('10 Sätze mit allen 8 Karten eines Werts ausgelegt', 'Melded 10 sets of all 8 cards of one rank'),
+        how: L('Lege insgesamt 10 Sätze mit allen acht Karten eines Werts aus (beide Decks, alle vier Farben).', 'Meld 10 sets in total of all eight cards of one rank (both decks, all four suits).') },
+      aces_1: { emoji: '🅰️', name: L('Asse hoch', 'Aces high'), desc: L('Eine Runde mit 6 oder mehr ausgelegten Assen', 'A round with 6 or more aces melded'),
+        how: L('Lege in einer Runde mindestens 6 Asse aus (Joker zählen nicht).', 'Meld at least 6 aces in one round (jokers do not count).') },
+      aces_5: { emoji: '🅰️', name: L('Ass im Ärmel', 'Ace up the sleeve'), desc: L('5 Runden mit 6 oder mehr ausgelegten Assen', '5 rounds with 6 or more aces melded'),
+        how: L('Lege in insgesamt 5 Runden je mindestens 6 Asse aus (Joker zählen nicht).', 'Meld at least 6 aces in 5 rounds in total (jokers do not count).') },
+      aces_20: { emoji: '🅰️', name: L('Flieger\u00adass', 'Flying ace'), desc: L('20 Runden mit 6 oder mehr ausgelegten Assen', '20 rounds with 6 or more aces melded'),
+        how: L('Lege in insgesamt 20 Runden je mindestens 6 Asse aus (Joker zählen nicht).', 'Meld at least 6 aces in 20 rounds in total (jokers do not count).') },
+      swap_3: { emoji: '🔁', name: L('Wechsel\u00adstube', 'Exchange booth'), desc: L('3 Joker aus Auslagen getauscht', 'Swapped 3 jokers out of melds'),
+        how: L('Tausche insgesamt 3 Joker gegen die passende Karte aus deinen Auslagen.', 'Swap 3 jokers in total for the matching card in your melds.') },
+      swap_15: { emoji: '🔁', name: L('Tausch\u00adbörse', 'Swap meet'), desc: L('15 Joker aus Auslagen getauscht', 'Swapped 15 jokers out of melds'),
+        how: L('Tausche insgesamt 15 Joker gegen die passende Karte aus deinen Auslagen.', 'Swap 15 jokers in total for the matching card in your melds.') },
+      swap_50: { emoji: '🔁', name: L('Joker-Bank', 'Joker bank'), desc: L('50 Joker aus Auslagen getauscht', 'Swapped 50 jokers out of melds'),
+        how: L('Tausche insgesamt 50 Joker gegen die passende Karte aus deinen Auslagen.', 'Swap 50 jokers in total for the matching card in your melds.') },
+      blitz_5: { emoji: '⚡', name: L('Blitz\u00adrunde', 'Lightning round'), desc: L('5 Runden in höchstens 5 eigenen Zügen ausgemacht', 'Went out within 5 own turns in 5 rounds'),
+        how: L('Mach insgesamt 5 Runden in höchstens 5 eigenen Zügen aus.', 'Go out within 5 of your own turns in 5 rounds in total.') },
+      blitz_25: { emoji: '⚡', name: L('Kurzer Prozess', 'Short work'), desc: L('25 Runden in höchstens 5 eigenen Zügen ausgemacht', 'Went out within 5 own turns in 25 rounds'),
+        how: L('Mach insgesamt 25 Runden in höchstens 5 eigenen Zügen aus.', 'Go out within 5 of your own turns in 25 rounds in total.') },
+      blitz_100: { emoji: '⚡', name: L('Schnellzug', 'Express train'), desc: L('100 Runden in höchstens 5 eigenen Zügen ausgemacht', 'Went out within 5 own turns in 100 rounds'),
+        how: L('Mach insgesamt 100 Runden in höchstens 5 eigenen Zügen aus.', 'Go out within 5 of your own turns in 100 rounds in total.') },
+      sweep_1: { emoji: '🧹', name: L('Durch\u00admarsch', 'Clean sweep'), desc: L('Eine Partie in höchstens 5 Runden gewonnen', 'Won a game in 5 rounds or fewer'),
+        how: L('Gewinne eine Partie in höchstens 5 Runden.', 'Win a game in 5 rounds or fewer.') },
+      sweep_5: { emoji: '🧹', name: L('Kehraus', 'Sweep-out'), desc: L('5 Partien in höchstens 5 Runden gewonnen', 'Won 5 games in 5 rounds or fewer'),
+        how: L('Gewinne insgesamt 5 Partien in höchstens 5 Runden.', 'Win 5 games in total in 5 rounds or fewer.') },
+      sweep_20: { emoji: '🧹', name: L('Besenrein', 'Swept clean'), desc: L('20 Partien in höchstens 5 Runden gewonnen', 'Won 20 games in 5 rounds or fewer'),
+        how: L('Gewinne insgesamt 20 Partien in höchstens 5 Runden.', 'Win 20 games in total in 5 rounds or fewer.') },
+      exact_1: { emoji: '🎯', name: L('Punkt\u00adlandung', 'Spot landing'), desc: L('Eine Partie mit genau der Zielpunktzahl beendet', 'Finished a game on exactly the target score'),
+        how: L('Beende eine Partie mit genau 1000 Punkten (im Team: genau 2000).', 'Finish a game on exactly 1000 points (as a team: exactly 2000).') },
+      exact_3: { emoji: '🎯', name: L('Maßarbeit', 'Made to measure'), desc: L('3 Partien mit genau der Zielpunktzahl beendet', 'Finished 3 games on exactly the target score'),
+        how: L('Beende insgesamt 3 Partien mit genau 1000 Punkten (im Team: genau 2000).', 'Finish 3 games in total on exactly 1000 points (as a team: exactly 2000).') },
+      exact_10: { emoji: '🎯', name: L('Präzisions\u00adarbeit', 'Precision work'), desc: L('10 Partien mit genau der Zielpunktzahl beendet', 'Finished 10 games on exactly the target score'),
+        how: L('Beende insgesamt 10 Partien mit genau 1000 Punkten (im Team: genau 2000).', 'Finish 10 games in total on exactly 1000 points (as a team: exactly 2000).') },
+      pile_25: { emoji: '🦝', name: L('Stapel\u00adräuber', 'Pile raider'), desc: L('25-mal den Ablagestapel aufgenommen', 'Picked up the discard pile 25 times'),
+        how: L('Nimm insgesamt 25-mal den Ablagestapel auf (mindestens zwei Karten).', 'Pick up the discard pile 25 times in total (two cards or more).') },
+      pile_100: { emoji: '🦝', name: L('Altpapier\u00adsammler', 'Paper collector'), desc: L('100-mal den Ablagestapel aufgenommen', 'Picked up the discard pile 100 times'),
+        how: L('Nimm insgesamt 100-mal den Ablagestapel auf (mindestens zwei Karten).', 'Pick up the discard pile 100 times in total (two cards or more).') },
+      pile_500: { emoji: '🦝', name: L('Alles\u00adfresser', 'Omnivore'), desc: L('500-mal den Ablagestapel aufgenommen', 'Picked up the discard pile 500 times'),
+        how: L('Nimm insgesamt 500-mal den Ablagestapel auf (mindestens zwei Karten).', 'Pick up the discard pile 500 times in total (two cards or more).') },
+      team_1: { emoji: '🤝', name: L('Teamgeist', 'Team spirit'), desc: L('Eine Partie „2 gegen 2“ gewonnen', 'Won a “2 vs 2” game'),
+        how: L('Gewinne eine Partie im Modus „2 gegen 2“.', 'Win a game in “2 vs 2” mode.') },
+      team_10: { emoji: '🤝', name: L('Eingespielt', 'In sync'), desc: L('10 Partien „2 gegen 2“ gewonnen', 'Won 10 “2 vs 2” games'),
+        how: L('Gewinne insgesamt 10 Partien im Modus „2 gegen 2“.', 'Win 10 games in total in “2 vs 2” mode.') },
+      team_50: { emoji: '🤝', name: L('Dreamteam', 'Dream team'), desc: L('50 Partien „2 gegen 2“ gewonnen', 'Won 50 “2 vs 2” games'),
+        how: L('Gewinne insgesamt 50 Partien im Modus „2 gegen 2“.', 'Win 50 games in total in “2 vs 2” mode.') },
+      early_1: { emoji: '🐓', name: L('Früh\u00adaufsteher', 'Early bird'), desc: L('Eine Partie zwischen 5 und 7 Uhr beendet', 'Finished a game between 5 and 7 am'),
+        how: L('Beende eine Partie zwischen 5 und 7 Uhr morgens (deutsche Zeit).', 'Finish a game between 5 and 7 am (German time).') },
+      early_10: { emoji: '🐓', name: L('Morgenstund', 'Morning hour'), desc: L('10 Partien zwischen 5 und 7 Uhr beendet', 'Finished 10 games between 5 and 7 am'),
+        how: L('Beende insgesamt 10 Partien zwischen 5 und 7 Uhr morgens (deutsche Zeit).', 'Finish 10 games in total between 5 and 7 am (German time).') },
+      early_30: { emoji: '🐓', name: L('Der frühe Vogel', 'Up with the lark'), desc: L('30 Partien zwischen 5 und 7 Uhr beendet', 'Finished 30 games between 5 and 7 am'),
+        how: L('Beende insgesamt 30 Partien zwischen 5 und 7 Uhr morgens (deutsche Zeit).', 'Finish 30 games in total between 5 and 7 am (German time).') },
+      stammtisch_50: { emoji: '🍻', name: L('Stammgast', 'House regular'), desc: L('50 Partien am Stammtisch', '50 games at a regulars table'),
+        how: L('Spiele 50 Partien an einem Stammtisch.', 'Play 50 games at a regulars table.') },
+      stammtisch_100: { emoji: '🍻', name: L('Inventar', 'Part of the furniture'), desc: L('100 Partien am Stammtisch', '100 games at a regulars table'),
+        how: L('Spiele 100 Partien an einem Stammtisch.', 'Play 100 games at a regulars table.') },
       challenger_7: { emoji: '🏁', name: L('Heraus\u00adforderer', 'Challenger'), desc: L('7 Tages-Challenges gespielt', 'Played 7 daily challenges'),
         how: L('Spiele 7 Tages-Challenges (an beliebigen Tagen).', 'Play 7 daily challenges (any days).') },
       challenger_30: { emoji: '🏁', name: L('Challenge-Profi', 'Challenge pro'), desc: L('30 Tages-Challenges gespielt', 'Played 30 daily challenges'),
@@ -642,11 +714,21 @@
     { id: 'tower', tiers: ['tower_3', 'tower_6', 'tower_10'] },
     { id: 'towerStars', tiers: ['tower_stars_30'] },
     { id: 'towerCrowned', tiers: ['tower_crowned_1', 'tower_crowned_3', 'tower_crowned_12'] },
+    { id: 'fullSet', tiers: ['full_set_1', 'full_set_3', 'full_set_10'] },
+    { id: 'aces', tiers: ['aces_1', 'aces_5', 'aces_20'] },
+    { id: 'swaps', tiers: ['swap_3', 'swap_15', 'swap_50'] },
+    { id: 'blitz', tiers: ['blitz_5', 'blitz_25', 'blitz_100'] },
+    { id: 'sweep', tiers: ['sweep_1', 'sweep_5', 'sweep_20'] },
+    { id: 'exact', tiers: ['exact_1', 'exact_3', 'exact_10'] },
+    { id: 'piles', tiers: ['pile_25', 'pile_100', 'pile_500'] },
+    { id: 'team', tiers: ['team_1', 'team_10', 'team_50'] },
+    { id: 'stammtisch', tiers: ['stammtisch_10', 'stammtisch_50', 'stammtisch_100'] },
+    { id: 'early', tiers: ['early_1', 'early_10', 'early_30'] },
   ];
   const BADGE_SINGLES = [
     'pd_caught', 'round_300', 'score_500', 'pd_triple', 'double_queen_round',
     'comeback', 'zen_slayer', 'zen_trio', 'ring_run', 'run_13', 'pile_glutton', 'no_joker_win',
-    'quick_start', 'joker_king', 'landslide', 'challenge_champ', 'queen_magnet_day', 'stammtisch_10', 'night_owl',
+    'quick_start', 'joker_king', 'landslide', 'challenge_champ', 'queen_magnet_day', 'night_owl',
     'near_miss', 'cold_shower', 'rock_bottom', 'red_lantern', 'royal_flush', 'pik_royal',
     'boss_jack', 'boss_jack_3', 'boss_king', 'boss_king_3', 'boss_queen', 'boss_queen_3', 'boss_court',
   ];
@@ -1253,15 +1335,15 @@
   //     counting them yourself is part of the game, so the tutorial leaves it alone.
   const AID_DISCARD_KEY = 'pikdame_aid_discard';
   const AID_LAYOFF_KEY = 'pikdame_aid_layoff';
-  const AID_LOWCARDS_KEY = 'pikdame_aid_lowcards';
   let aidDiscard = storageGet(AID_DISCARD_KEY) === 'on';
   let aidLayOff = storageGet(AID_LAYOFF_KEY) !== 'off';
-  let aidLowCards = storageGet(AID_LOWCARDS_KEY) === 'on';
+  // The old low-card warning is gone (it did the watching for you): forget a stored switch.
+  storageRemove('pikdame_aid_lowcards');
   const inTutorial = () => !!(lastState && lastState.tutorialMode);
   const discardAidOn = () => aidDiscard || inTutorial();
   const layOffAidOn = () => aidLayOff || inTutorial();
   function renderAidControls() {
-    for (const [boxId, on] of [['aidDiscardCheckbox', aidDiscard], ['aidLayOffCheckbox', aidLayOff], ['aidLowCardsCheckbox', aidLowCards]]) {
+    for (const [boxId, on] of [['aidDiscardCheckbox', aidDiscard], ['aidLayOffCheckbox', aidLayOff]]) {
       const box = document.getElementById(boxId);
       if (box) box.checked = on;
     }
@@ -1272,9 +1354,6 @@
     if (which === 'discard') {
       aidDiscard = enabled;
       storageSet(AID_DISCARD_KEY, enabled ? 'on' : 'off');
-    } else if (which === 'lowcards') {
-      aidLowCards = enabled;
-      storageSet(AID_LOWCARDS_KEY, enabled ? 'on' : 'off');
     } else {
       aidLayOff = enabled;
       storageSet(AID_LAYOFF_KEY, enabled ? 'on' : 'off');
@@ -1355,6 +1434,7 @@
     const dead = ws;
     ws = null;
     pingSentAt = 0;
+    if (dead) debugNote('closed'); // its own close event is ignored from here on
     stopWatchdog();
     try { if (dead) dead.close(); } catch (e) { /* already gone */ }
     updateNetBanner();
@@ -1443,6 +1523,11 @@
     const sock = new WebSocket(wsUrl());
     ws = sock;
     pingSentAt = 0;
+    // Debug view: every frame sent on this socket is counted in one place.
+    try {
+      const rawSend = sock.send.bind(sock);
+      sock.send = (data) => { debugNote('tx', data); return rawSend(data); };
+    } catch (e) { /* optional */ }
     const connectTimer = setTimeout(() => {
       if (sock === ws && sock.readyState === WebSocket.CONNECTING) abandonSocket({ backoff: true });
     }, CONNECT_TIMEOUT_MS);
@@ -1453,6 +1538,7 @@
     sock.addEventListener('open', () => {
       clearTimeout(connectTimer);
       if (sock !== ws) return;
+      debugNote('opened');
       lastRxAt = Date.now();
       lastActionAt = 0;
       startWatchdog();
@@ -1500,6 +1586,7 @@
     sock.addEventListener('close', () => {
       clearTimeout(connectTimer);
       if (sock !== ws) return;
+      debugNote('closed');
       stopWatchdog();
       scheduleReconnect();
     });
@@ -1522,8 +1609,11 @@
       // der State-Update ginge verloren und die UI bliebe inkonsistent.
       // So wird geloggt und der nächste State heilt die Anzeige.
       try {
-        handleMessage(JSON.parse(ev.data));
+        const msg = JSON.parse(ev.data);
+        debugNote('rx', msg && msg.type, ev.data.length);
+        handleMessage(msg);
       } catch (err) {
+        debugNote('error', `message: ${err && err.message}`);
         console.error('Fehler beim Verarbeiten einer Server-Nachricht:', err);
       }
     });
@@ -1746,6 +1836,9 @@
       if (/Siegesjubel/.test(msg.error || '')) {
         try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ }
       }
+      if (/Haustier/.test(msg.error || '')) {
+        try { updatePetSetting(); } catch (e) { /* cosmetic */ }
+      }
       // Tutorial: a refusal is the best teaching moment - the rule behind it
       // goes into the coach card, alone (the centred toast covered the card).
       const why = tutorialActive ? tutorialExplainError(msg.error || '') : null;
@@ -1762,7 +1855,9 @@
       return;
     }
     if (msg.type === 'state') {
+      const beforeState = lastState;
       lastState = msg.state;
+      try { notePetEvents(beforeState, lastState); } catch (e) { /* pets are decoration */ }
       try { maybeClaimBadges(); } catch (e) { /* cards are a bonus */ }
       if (lastState.challengeDate && sessionCode) {
         const over = lastState.abandoned || ['gameOver', 'abandoned'].includes(lastState.phase);
@@ -1936,6 +2031,8 @@
       publicMode = !!msg.publicMode;
       el('statsBtn').classList.toggle('hidden', publicMode);
       try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ }
+      try { updatePetSetting(); } catch (e) { /* cosmetic */ }
+      try { maybeAnnouncePet(); } catch (e) { /* cosmetic */ }
       if (!publicMode && !towerInfo) requestTower();
       try { renderTowerTile(); } catch (e) { /* cosmetic */ }
       if (msg.quests) dailyQuests = msg.quests;
@@ -2327,61 +2424,68 @@
   let soundedForRound = -1;
 
   function render() {
-    try { updateTutorial(); } catch (e) { /* hints must never break the table */ }
-    try { updateCountdownTimer(); } catch (e) { /* timer must never break the table */ }
-    try { renderCutOverlay(); } catch (e) { /* cut overlay must never break the table */ }
-    try { maybeShowCutReveal(); } catch (e) { /* reveal must never break the table */ }
-    if (!lastState) return;
-
-    const inLobby = lastState.phase === 'lobby';
-    el('lobby').classList.toggle('hidden', !inLobby);
-    el('table').classList.toggle('hidden', inLobby);
-    syncSeasonSnow();
-    syncTableLight();
-    try { syncTableMark(); } catch (e) { /* the felt's mark is decoration, never critical */ }
-    renderPause();
-    try { renderTableOptions(); } catch (e) { /* "Optionen" must never break the table */ }
-
-    if (inLobby) {
-      // Coming back to the lobby (e.g. after a rematch) must clear any result
-      // overlay - otherwise a player who did not click the rematch button keeps
-      // the game-over overlay stuck on top of the lobby and cannot ready up.
-      el('resultOverlay').classList.add('hidden');
-      renderLobby();
-      return;
-    }
-
-    renderTable();
-
-    // Feel: Punkte-Popup (kosmetisch, seq-entdupliziert). Eigene Punkte
-    // steigen über der eigenen Auslagen-Zone auf, fremde am Spieler-Chip.
+    const t0 = performance.now(); // timed for the debug view
     try {
-      const ev = lastState.lastPointsEvent;
-      if (ev && ev.seq !== shownPointsSeq) {
-        shownPointsSeq = ev.seq;
-        spawnPointsPopup(ev);
-      }
-    } catch (e) { /* nie kritisch */ }
+      try { updateTutorial(); } catch (e) { /* hints must never break the table */ }
+      try { updateCountdownTimer(); } catch (e) { /* timer must never break the table */ }
+      try { renderCutOverlay(); } catch (e) { /* cut overlay must never break the table */ }
+      try { maybeShowCutReveal(); } catch (e) { /* reveal must never break the table */ }
+      if (!lastState) return;
 
-    // Feel: Runden-Stempel beim Rundenwechsel (nicht bei Reload/Resume).
-    try {
-      if (lastState.phase === 'playing' && stampKnownRound !== null &&
-          lastState.roundNumber === stampKnownRound + 1) {
-        showRoundStamp(lastState.roundNumber);
-      }
-      if (lastState.phase === 'playing' || lastState.phase === 'roundEnd') {
-        stampKnownRound = lastState.roundNumber;
-      }
-    } catch (e) { /* nie kritisch */ }
+      if (lastState.phase !== 'gameOver') endChartReveal(); // the next match's chart draws itself again
+      const inLobby = lastState.phase === 'lobby';
+      el('lobby').classList.toggle('hidden', !inLobby);
+      el('table').classList.toggle('hidden', inLobby);
+      syncSeasonSnow();
+      syncTableLight();
+      try { syncTableMark(); } catch (e) { /* the felt's mark is decoration, never critical */ }
+      renderPause();
+      try { renderTableOptions(); } catch (e) { /* "Optionen" must never break the table */ }
 
-    if (lastState.phase === 'roundEnd' || lastState.phase === 'gameOver') {
-      if (soundedForRound !== lastState.roundNumber) {
-        soundedForRound = lastState.roundNumber;
-        sound.roundEnd();
+      if (inLobby) {
+        // Coming back to the lobby (e.g. after a rematch) must clear any result
+        // overlay - otherwise a player who did not click the rematch button keeps
+        // the game-over overlay stuck on top of the lobby and cannot ready up.
+        el('resultOverlay').classList.add('hidden');
+        renderLobby();
+        return;
       }
-      renderResultOverlay();
-    } else {
-      el('resultOverlay').classList.add('hidden');
+
+      renderTable();
+
+      // Feel: Punkte-Popup (kosmetisch, seq-entdupliziert). Eigene Punkte
+      // steigen über der eigenen Auslagen-Zone auf, fremde am Spieler-Chip.
+      try {
+        const ev = lastState.lastPointsEvent;
+        if (ev && ev.seq !== shownPointsSeq) {
+          shownPointsSeq = ev.seq;
+          spawnPointsPopup(ev);
+        }
+      } catch (e) { /* nie kritisch */ }
+
+      // Feel: Runden-Stempel beim Rundenwechsel (nicht bei Reload/Resume).
+      try {
+        if (lastState.phase === 'playing' && stampKnownRound !== null &&
+            lastState.roundNumber === stampKnownRound + 1) {
+          showRoundStamp(lastState.roundNumber);
+        }
+        if (lastState.phase === 'playing' || lastState.phase === 'roundEnd') {
+          stampKnownRound = lastState.roundNumber;
+        }
+      } catch (e) { /* nie kritisch */ }
+
+      if (lastState.phase === 'roundEnd' || lastState.phase === 'gameOver') {
+        if (soundedForRound !== lastState.roundNumber) {
+          soundedForRound = lastState.roundNumber;
+          sound.roundEnd();
+        }
+        renderResultOverlay();
+      } else {
+        el('resultOverlay').classList.add('hidden');
+      }
+    } finally {
+      debugNote('rendered', performance.now() - t0);
+      refreshDebugSoon();
     }
   }
 
@@ -2853,19 +2957,13 @@
         d.title = L(`${cardsText} · ${opTotal} Punkte`, `${cardsText} · ${opTotal} points`);
         const opProgress = Math.max(0, Math.min(100, (opTotal / 1000) * 100));
         if (reconnecting || leftGame) d.classList.add('disconnected');
-        // Play aid "low-card warning" (default off): a tag on the chip's edge,
-        // so the chip keeps its height and the melds below do not jump.
-        const lowCards = aidLowCards && !leftGame && lastState.phase === 'playing' && p.handCount > 0 && p.handCount <= 2;
-        if (lowCards) d.classList.add('lowCards');
-        // The same edge slot says who gave the game up or dropped out (the name row would
-        // truncate it); the warning wins, the dimmed face still says "offline".
-        const lowTag = leftGame
-          ? `<span class="opLowTag opLeftTag"><span>${L('hat verlassen', 'left')}</span></span>`
-          : lowCards
-            ? `<span class="opLowTag"><svg class="icon" aria-hidden="true"><use href="#i-alert"/></svg><span>${p.handCount === 1 ? L('Letzte Karte!', 'Last card!') : L('Noch 2 Karten!', '2 cards left!')}</span></span>`
-            : reconnecting
-              ? `<span class="opLowTag opLeftTag reconnectTag"><span>${L('getrennt', 'offline')}</span></span>`
-              : '';
+        // The chip's bottom edge says who gave the game up or dropped out (the name row would
+        // truncate it), so the chip keeps its height; the dimmed face says "offline" too.
+        const edgeTag = leftGame
+          ? `<span class="opEdgeTag"><span>${L('hat verlassen', 'left')}</span></span>`
+          : reconnecting
+            ? `<span class="opEdgeTag reconnectTag"><span>${L('getrennt', 'offline')}</span></span>`
+            : '';
         const faceBreath = breath && breath.id === p.id ? breath : null;
         // "2 gegen 2": the partner's chip ringed in the team colour with a filled "Team" tab, a rival's
         // a quiet stripe (named: an outlined tab). The bar is the team's, the number the seat's own.
@@ -2886,7 +2984,7 @@
           ? teamBarHtml(team, p.id)
           : `<div class="scoreBar" title="${L('Fortschritt bis 1000 Punkte', 'Progress towards 1000 points')}"><i style="width:${opProgress}%"></i></div>`;
         // The dealer star sits on the face (a dealer button), so the name keeps the whole row.
-        d.innerHTML = `<div class="opName"><span class="opSeat">${avatarFor(p.name, p.isBot, faceBreath)}${dealerStar}</span><span class="opNameText">${nameWithHeart(p.name)}</span></div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div>${bar}${teamTag}${lowTag}`;
+        d.innerHTML = `<div class="opName"><span class="opSeat">${avatarFor(p.name, p.isBot, faceBreath)}${dealerStar}</span><span class="opNameText">${nameWithHeart(p.name)}</span></div><div class="opCount"><span class="opCards" title="${cardsText}"><svg class="icon" aria-hidden="true"><use href="#i-cards"/></svg><b>${p.handCount}</b></span><b class="opPts" title="${L(`${opTotal} Punkte`, `${opTotal} points`)}">${opTotal}</b></div>${bar}${teamTag}${edgeTag}`;
         // Every seat sees the level (only the host can change it): guests at a Stammtisch
         // saw none while all bots were equal. Daily challenge: fixed and deliberately unsaid.
         // Badge lives OUTSIDE the name div: inside it, the name ellipsis on
@@ -3448,6 +3546,7 @@
       });
     // Rebuilt meld cards still in flight stay hidden until their ghost lands.
     try { holdTableMoves(); } catch (e) { /* cosmetic */ }
+    try { renderPets(); } catch (e) { /* pets are decoration, never critical */ }
   }
 
   // The forfeit vote sits in the home dialog, next to "Tisch verlassen". Not in
@@ -4362,7 +4461,10 @@
         box.innerHTML = `<h4>${L('Schlüsselmomente', 'Key moments')}</h4><ul class="momentList">${rows}</ul>`;
         paneResult.appendChild(box);
       }
-      if (chart) paneResult.insertBefore(chart, paneResult.querySelector('.matchMoments'));
+      if (chart) {
+        paneResult.insertBefore(chart, paneResult.querySelector('.matchMoments'));
+        try { revealScoreChart(chart); } catch (e) { /* cosmetic */ }
+      }
       // Small facts of the match: chips, not three loose lines of prose.
       const gi = lastState.gameOverInfo;
       const facts = [];
@@ -5123,7 +5225,6 @@
   });
   el('aidDiscardCheckbox').addEventListener('change', () => setAid('discard', el('aidDiscardCheckbox').checked));
   el('aidLayOffCheckbox').addEventListener('change', () => setAid('layoff', el('aidLayOffCheckbox').checked));
-  el('aidLowCardsCheckbox').addEventListener('change', () => setAid('lowcards', el('aidLowCardsCheckbox').checked));
   el('soundCheckbox').addEventListener('change', () => setSoundEnabled(el('soundCheckbox').checked));
   el('musicLevelSelect').addEventListener('change', () => setMusicLevel(el('musicLevelSelect').value));
   el('musicTrackSelect').addEventListener('change', () => setMusicChoice(el('musicTrackSelect').value));
@@ -7702,6 +7803,61 @@
     return `<div class="scoreBar teamBar" style="--team-c:${teamColor(team)}" title="${escapeHtml(tb.title)}">` +
       `<i class="tbOwn" style="width:${tb.ownPct}%"></i><i class="tbMate" style="left:${tb.ownPct}%;width:${tb.matePct}%"></i></div>`;
   }
+  // --- The chart draws itself on the game-over sheet (public/score-chart.js) ---
+  const chartApi = window.PikdameScoreChart || null;
+  const CHART_REVEAL_KEY = 'pikdame_chart_reveal'; // "Punkteverlauf zeichnen" in "Optionen", per device, default on
+  let chartRevealOn = storageGet(CHART_REVEAL_KEY) !== 'off';
+  const chartReveals = new WeakMap(); // chart element -> its lines and lead changes
+  // Once per game-over sheet, from the moment the chart is seen (landscape: it sits below
+  // the fold). The sheet re-renders (badges, progress, language) and joins by the clock.
+  let chartRevealRun = null; // { key, t0, anims, seen }
+  function endChartReveal() {
+    if (chartRevealRun && chartRevealRun.seen) chartRevealRun.seen.disconnect();
+    chartRevealRun = null;
+  }
+  function revealScoreChart(chart) {
+    const spec = chartReveals.get(chart);
+    if (!chartApi || !spec || !chartRevealOn || reducedMotion) return;
+    const key = `${sessionCode || ''}:${lastState.roundNumber}`;
+    if (!chartRevealRun || chartRevealRun.key !== key) { endChartReveal(); chartRevealRun = { key, t0: null, anims: [], seen: null }; }
+    const run = chartRevealRun;
+    const svg = chart.querySelector('svg');
+    if (run.seen) { run.seen.disconnect(); run.seen = null; }
+    if (run.t0 !== null) { run.anims = chartApi.play(svg, spec, performance.now() - run.t0); return; }
+    run.anims = chartApi.play(svg, spec, 0, { paused: true });
+    const start = () => {
+      run.t0 = performance.now();
+      for (const a of run.anims) { try { a.play(); } catch (e) { /* cosmetic */ } }
+    };
+    if (typeof IntersectionObserver !== 'function') { start(); return; }
+    run.seen = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      run.seen.disconnect();
+      run.seen = null;
+      start();
+    }, { threshold: 0.2 }); // less than that shows the goal line at most, no curve
+    run.seen.observe(svg);
+  }
+  /** "Punkteverlauf zeichnen": off, the chart stands there finished, as before. */
+  function setChartReveal(on) {
+    chartRevealOn = on;
+    storageSet(CHART_REVEAL_KEY, on ? 'on' : 'off');
+    const box = el('chartRevealCheckbox');
+    if (box) box.checked = on;
+    if (!on && chartRevealRun) {
+      if (chartRevealRun.seen) { chartRevealRun.seen.disconnect(); chartRevealRun.seen = null; }
+      for (const a of chartRevealRun.anims) { try { a.finish(); } catch (e) { /* cosmetic */ } }
+      chartRevealRun.anims = [];
+      chartRevealRun.t0 = -1e9; // a re-render of this sheet finds it finished
+    }
+  }
+  {
+    const box = el('chartRevealCheckbox'); // missing in a stale cached page: the setting just waits
+    if (box) {
+      box.checked = chartRevealOn;
+      box.addEventListener('change', () => setChartReveal(box.checked));
+    }
+  }
   /** The match as two lines, one per team (A blue, B orange); mine is the bold one.
    *  st: the live table, or { teams, meId } of a stored game ("Meine Partien"). */
   function renderTeamScoreChart(history, st = lastState) {
@@ -7749,14 +7905,22 @@
     }
     // Others first (thinner, full colour: a translucent line failed contrast), mine last and on top.
     const order = players.slice().sort((a, b) => (a.id === meId) - (b.id === meId));
+    // What the game-over sheet needs to draw the lines (revealScoreChart): same totals, same order.
+    chartReveals.set(wrap, {
+      lines: order.map((p) => ({ id: p.id, color: colorOf(p.id), points: history.map((h, i) => [x(i), y(valueAt(h, p))]) })),
+      changes: chartApi ? chartApi.leadChanges(history, players.map((p) => p.id)) : [],
+      plot: { x0: PAD.l, x1: W - PAD.r, top: 0, bottom: H - PAD.b + 2 },
+    });
+    const endDots = []; // after all lines: the reveal's cover goes between the two
     order.forEach((p) => {
       const color = colorOf(p.id);
       const mine = p.id === meId;
       const points = history.map((h, i) => `${x(i).toFixed(1)},${y(valueAt(h, p)).toFixed(1)}`).join(' ');
       svgParts.push(`<polyline points="${points}" fill="none" stroke="${color}" stroke-width="${mine ? 3 : 1.6}" stroke-linejoin="round" stroke-linecap="round" class="${mine ? 'mine' : 'other'}"/>`);
       const last = history[history.length - 1];
-      svgParts.push(`<circle cx="${x(history.length - 1).toFixed(1)}" cy="${y(valueAt(last, p)).toFixed(1)}" r="${mine ? 4 : 3.2}" fill="${color}" class="endDot"/>`);
+      endDots.push(`<circle cx="${x(history.length - 1).toFixed(1)}" cy="${y(valueAt(last, p)).toFixed(1)}" r="${mine ? 4 : 3.2}" fill="${color}" class="endDot"/>`);
     });
+    svgParts.push(...endDots);
     // Direct end labels, nudged apart so close finishes stay readable.
     const last = history[history.length - 1];
     const labels = players
@@ -8469,7 +8633,7 @@
   const UNLOCK_GAP_MS = 320;
   const UNLOCK_LEAVE_MS = 260;
   const UNLOCK_SINGLES = 3;
-  const unlockQueue = []; // { kind: 'badge', id } | { kind: 'season', award, season, place, ranked } | { kind: 'more', items }
+  const unlockQueue = []; // { kind: 'badge', id } | { kind: 'season', award, season, place, ranked } | { kind: 'pet', id } | { kind: 'more', items }
   const unlockSeen = new Set(); // this page never pops one twice
   let unlockCard = null; // { item, node, endsAt, remaining, timer, holds: Set }
   let unlockBurst = 0; // single cards since the queue was last empty
@@ -8508,7 +8672,7 @@
   }
 
   function unlockKey(item) {
-    return item.kind === 'season' ? `season:${item.season}` : `badge:${item.id}`;
+    return item.kind === 'season' ? `season:${item.season}` : `${item.kind === 'pet' ? 'pet' : 'badge'}:${item.id}`;
   }
   function enqueueUnlocks(items) {
     for (const item of items) {
@@ -8535,8 +8699,17 @@
     const wait = Math.max(delay, unlockWait());
     if (wait > 0) { unlockTimer = setTimeout(() => pumpUnlocks(), wait); return; }
     // The burst's fourth card on: everything left in one, unless one alone is left.
-    const fold = unlockBurst >= UNLOCK_SINGLES && unlockQueue.length > 1;
-    const item = fold ? { kind: 'more', items: unlockQueue.splice(0) } : unlockQueue.shift();
+    // A pet's card never folds into the badges: it says something else.
+    const badges = unlockQueue.filter((it) => it.kind !== 'pet');
+    const fold = unlockBurst >= UNLOCK_SINGLES && badges.length > 1 && unlockQueue[0].kind !== 'pet';
+    if (fold) unlockQueue.splice(0, unlockQueue.length, ...unlockQueue.filter((it) => it.kind === 'pet'));
+    const item = fold ? { kind: 'more', items: badges } : unlockQueue.shift();
+    // Queued on the start screen, due at the table: the pet's card waits for the start screen (it leads to the options).
+    if (item.kind === 'pet' && !el('table').classList.contains('hidden')) {
+      unlockSeen.delete(unlockKey(item));
+      pumpUnlocks();
+      return;
+    }
     if (!fold) unlockBurst += 1;
     showUnlock(item);
   }
@@ -8551,6 +8724,15 @@
         art: `+${n}`, count: true, eyebrow: L('Abzeichen freigeschaltet', 'Badges unlocked'),
         name: n === 1 ? L('1 weiteres Abzeichen', '1 more badge') : L(`${n} weitere Abzeichen`, `${n} more badges`),
         sub: names.join(' · '),
+      };
+    }
+    if (item.kind === 'pet') {
+      const pt = PET_LIST.find((x) => x.id === item.id) || { de: '', en: '', level: 1 };
+      return {
+        artHtml: petApi ? petApi.html(item.id, { mood: 'happy', collar: PLAYER_COLORS[0], born: petBornOf('news') }) : '',
+        eyebrow: L(`Neu ab Stufe ${pt.level}`, `New from level ${pt.level}`),
+        name: L(`Eine ${pt.de} wartet auf dich`, `A ${pt.en.toLowerCase()} is waiting for you`),
+        sub: L('Wähle sie in den Optionen', 'Choose it in the options'), // one line in landscape
       };
     }
     if (item.kind === 'season') {
@@ -8574,7 +8756,7 @@
     const v = unlockView(item);
     // The emoji IS the badge (content, as in the trophy cabinet), not an icon.
     return `<button type="button" class="unlockMain">` +
-      `<span class="unlockArt${v.count ? ' isCount' : ''}" aria-hidden="true">${escapeHtml(v.art)}</span>` +
+      `<span class="unlockArt${v.count ? ' isCount' : ''}" aria-hidden="true">${v.artHtml || escapeHtml(v.art)}</span>` +
       `<span class="unlockText"><span class="unlockEyebrow">${escapeHtml(v.eyebrow)}</span>` +
       `<span class="unlockName">${escapeHtml(v.name)}</span>` +
       (v.sub ? `<span class="unlockSub">${escapeHtml(v.sub)}</span>` : '') + '</span></button>' +
@@ -8607,6 +8789,7 @@
     placeUnlockLayer(true);
     el('unlockLayer').appendChild(node);
     unlockCard = { item, node, endsAt: 0, remaining: UNLOCK_SHOW_MS, timer: null, holds: new Set() };
+    if (item.kind === 'pet') storageSet(PET_NEWS_KEY, '1'); // said once per device
     runUnlockClock();
     if (document.visibilityState === 'hidden') holdUnlock('hidden');
     sound.unlock();
@@ -8666,13 +8849,19 @@
   }
   // A tap opens the badge in the trophy cabinet - only off the table and when no
   // sheet above the statistics would hide it; otherwise it just goes.
-  function unlockCanOpen() {
+  function unlockCanOpen(item) {
     if (publicMode || !el('table').classList.contains('hidden')) return false;
     const overlays = [...document.querySelectorAll('.overlay')];
+    if (item && item.kind === 'pet') return !overlays.some((o) => !o.classList.contains('hidden'));
     const stats = overlays.indexOf(el('statsOverlay'));
     return stats >= 0 && !overlays.slice(stats + 1).some((o) => !o.classList.contains('hidden'));
   }
   function openUnlockTarget(item) {
+    if (item.kind === 'pet') {
+      openOptions();
+      setTimeout(() => { try { el('petItem').scrollIntoView({ block: 'center' }); } catch (e) { /* the sheet is open anyway */ } }, 80);
+      return;
+    }
     const key = item.kind === 'badge' ? favoriteTileKey(item.id) : null;
     achShowAll = item.kind !== 'season'; // the folded cabinet may not list it
     openAchId = key; // kept open when the fresh profile list re-renders
@@ -8695,7 +8884,7 @@
       if (ev.target.closest('.unlockClose')) { closeUnlock(); return; }
       if (!ev.target.closest('.unlockMain')) return;
       if (unlockSwiped) { unlockSwiped = false; return; }
-      const open = unlockCanOpen();
+      const open = unlockCanOpen(card.item);
       closeUnlock();
       if (open) openUnlockTarget(card.item);
     });
@@ -9666,6 +9855,7 @@
   // --- "Optionen": one sheet for the start screen and the table (gear) --------
   function openOptions() {
     try { updateCelebrationSetting(); } catch (e) { /* cosmetic */ } // sign-in may have changed
+    try { updatePetSetting(); } catch (e) { /* cosmetic */ }
     try { renderTableOptions(); } catch (e) { /* the sheet opens anyway */ }
     el('settingsOverlay').classList.remove('hidden');
   }
@@ -12220,7 +12410,19 @@
       tower_stars_30: cap(p.towerStars, 30),
       ...Object.fromEntries([1, 3, 12].map((n) => [`tower_crowned_${n}`, cap(p.towerCrownedMonths, n)])),
       red_lantern: cap(p.lastPlaceStreak, 3),
-      stammtisch_10: cap(p.totalStammtischGames, 10),
+      // v2.136 families: [id prefix, counter, tiers]
+      ...Object.fromEntries([
+        ['full_set', p.totalFullSets, [1, 3, 10]],
+        ['aces', p.totalAceRounds, [1, 5, 20]],
+        ['swap', p.totalJokerSwaps, [3, 15, 50]],
+        ['blitz', p.totalBlitzRounds, [5, 25, 100]],
+        ['sweep', p.totalShortWins, [1, 5, 20]],
+        ['exact', p.totalExactFinishes, [1, 3, 10]],
+        ['pile', p.totalPileTakes, [25, 100, 500]],
+        ['team', p.totalTeamWins, [1, 10, 50]],
+        ['stammtisch', p.totalStammtischGames, [10, 50, 100]],
+        ['early', p.totalEarlyGames, [1, 10, 30]],
+      ].flatMap(([pre, v, ns]) => ns.map((n) => [`${pre}_${n}`, cap(v, n)]))),
     };
   }
 
@@ -12737,10 +12939,11 @@
     for (const [id, level] of Object.entries(THEME_LEVELS)) out.push({ level, kind: 'theme', id, label: L(`Tischfarbe „${themeName(id)}“`, `table colour "${themeName(id)}"`) });
     for (const [level, de, en] of LEVEL_TITLES) if (level > 1) out.push({ level, kind: 'title', id: de, label: L(`Titel „${de}“`, `title "${en}"`) });
     for (const c of CELEBRATIONS) if (c.level > 1) out.push({ level: c.level, kind: 'celebration', id: c.id, label: L(`Siegesjubel „${c.de}“`, `victory celebration "${c.en}"`) });
+    for (const pt of PET_LIST) if (pt.level > 1) out.push({ level: pt.level, kind: 'pet', id: pt.id, label: L(`Haustier „${pt.de}“`, `pet "${pt.en}"`) });
     return out.sort((a, b) => a.level - b.level);
   }
   // Icons from the sprite per kind; an emote IS its emoji (content), so its label keeps it.
-  const REWARD_ICONS = { cardback: 'cards', mark: 'feltmark', theme: 'palette', title: 'tag', celebration: 'sparkle' };
+  const REWARD_ICONS = { cardback: 'cards', mark: 'feltmark', theme: 'palette', title: 'tag', celebration: 'sparkle', pet: 'paw' };
   function rewardHtml(r) {
     return REWARD_ICONS[r.kind] ? `${iconHtml(REWARD_ICONS[r.kind])}<span>${escapeHtml(r.label)}</span>` : `<span>${escapeHtml(r.label)}</span>`;
   }
@@ -12769,6 +12972,9 @@
     '🃏': 20, '😅': 21, '🤞': 22, '👀': 23, '🙄': 24, '😬': 26, '🙃': 28, '🤝': 30, '😇': 32, '☕': 34, '🐢': 36, '🍻': 38, '❤️': 40,
   };
   // Mirrors game/Celebrations.js (contract test); the names live here.
+  // Table pets: the list and the drawing come from public/pet.js (mirrors game/Pets.js, contract test).
+  const petApi = window.PikdamePet || null;
+  const PET_LIST = petApi ? petApi.PETS : [];
   const CELEBRATIONS = [
     { id: 'standard', level: 1, de: 'Standard', en: 'Standard' },
     { id: 'cats', level: 10, de: 'Katzen-Konfetti', en: 'Cat confetti' },
@@ -12947,61 +13153,224 @@
   } catch (e) { /* optional */ }
   applyTableMark();
 
-  // --- Debug-Overlay (Einstellungen): Gitter + Live-Metriken -----------------
-  // Für Ferndiagnosen von Layout-Fehlern: Ein Screenshot mit aktivem Overlay
-  // enthält alle Viewport-Quellen, die Container-Kanten (farbige Umrandungen)
-  // und ein 10/50px-Gitter zum Nachmessen.
+  // --- Debug view ("Optionen"): grid, outlines, live pages, report -----------
+  // For remote diagnosis: a screenshot shows the container edges and a 10/50 px
+  // grid; the pages show layout, connection, rendering and the table state; the
+  // copy button puts the whole report on the clipboard (docs: debug-view.md).
   const DEBUG_KEY = 'pikdame_debug';
-  let debugTimer = null;
+  const DEBUG_PAGE_KEY = 'pikdame_debug_page';
+  const DEBUG_FOLD_KEY = 'pikdame_debug_fold';
+  const DEBUG_DOCK_KEY = 'pikdame_debug_dock';
+  const DEBUG_DOCKS = ['tr', 'br', 'bl', 'tl']; // corners, clockwise from the default
+  const DEBUG_PAINT_MS = 250;       // values repaint this often ...
+  const DEBUG_PAINT_EVENT_MS = 80;  // ... and this soon after a state, render or resize
+  const DEBUG_PING_MS = 5000;       // round-trip probe while the view is on
+  let debugFrameReq = 0;
+  let debugFallbackTimer = null;
+  let debugPingTimer = null;
+  let debugPaintedAt = 0;
+  let debugLongObs = null;
+  let debugProbe = null;
+  let debugPage = 'layout';
   function debugEnabled() { return storageGet(DEBUG_KEY) === 'on'; }
-  function updateDebugPanel() {
-    if (!debugEnabled()) return;
-    const probe = document.createElement('div');
-    probe.style.cssText = 'position:fixed;height:100dvh;width:0;visibility:hidden;';
-    document.body.appendChild(probe);
-    const dvh = probe.offsetHeight;
-    probe.remove();
-    const cs = getComputedStyle(document.documentElement);
+  function debugPages() { return debugView ? debugView.PAGES : ['layout']; }
+  function debugPageLabel(page) {
+    return { layout: 'Layout', net: L('Netz', 'Network'), render: 'Render', game: L('Spiel', 'Game') }[page] || page;
+  }
+  function debugLayoutMode() {
+    if (window.matchMedia('(orientation: landscape) and (max-height: 540px)').matches) return 'landscape';
+    if (window.matchMedia('(min-width: 1100px)').matches) return 'desktop';
+    return 'portrait';
+  }
+  /** Everything the view knows, as plain data: the panel's pages and the copied report read it. */
+  function buildDebugReport() {
+    const snap = debugStats ? debugStats.snapshot() : {};
+    const root = document.documentElement;
+    const cs = getComputedStyle(root);
+    const css = (name) => cs.getPropertyValue(name).trim() || '0px';
     const app = document.getElementById('app');
     const vv = window.visualViewport;
-    const lines = [
-      `Pik Dame ${el('versionValue') ? el('versionValue').textContent : ''}  ${new Date().toISOString().slice(11, 19)}Z`,
-      `standalone: ${window.matchMedia('(display-mode: standalone)').matches}  dpr: ${window.devicePixelRatio}`,
-      `innerH: ${window.innerHeight}  vv.h: ${vv ? Math.round(vv.height) : '-'}  100dvh: ${dvh}`,
-      `--appvh: ${cs.getPropertyValue('--appvh').trim() || '-'}  #app.h: ${app ? app.clientHeight : '-'}`,
-      `viewport-app delta: ${app ? Math.max(window.innerHeight, dvh) - app.clientHeight : '-'}px`,
-      `safe t/b: ${cs.getPropertyValue('--safe-top').trim() || '0px'} / ${cs.getPropertyValue('--safe-bottom').trim() || '0px'}`,
-      `uiscale: ${document.documentElement.dataset.uiscale || 'normal'}  w: ${window.innerWidth}`,
-      `outlines: app=rot screen=orange handWrap=cyan hand=gelb`,
-    ];
+    if (!debugProbe) {
+      debugProbe = document.createElement('div');
+      debugProbe.style.cssText = 'position:fixed;top:0;left:0;height:100dvh;width:0;visibility:hidden;pointer-events:none;';
+    }
+    if (!debugProbe.isConnected) document.body.appendChild(debugProbe);
+    const dvh = debugProbe.offsetHeight;
+    const screen = document.querySelector('.screen:not(.hidden)');
+    const mem = performance.memory;
+    return {
+      app: 'Pik Dame',
+      version: el('versionValue') ? el('versionValue').textContent : '',
+      at: new Date().toISOString(),
+      lang,
+      userAgent: navigator.userAgent,
+      layout: {
+        mode: debugLayoutMode(),
+        w: window.innerWidth,
+        h: window.innerHeight,
+        dpr: window.devicePixelRatio,
+        vvH: vv ? Math.round(vv.height) : null,
+        dvh,
+        appVh: cs.getPropertyValue('--appvh').trim() || null,
+        appH: app ? app.clientHeight : null,
+        delta: app ? Math.max(window.innerHeight, dvh) - app.clientHeight : null,
+        safeTop: css('--safe-top'), safeBottom: css('--safe-bottom'), safeLeft: css('--safe-left'), safeRight: css('--safe-right'),
+        standalone: window.matchMedia('(display-mode: standalone)').matches,
+        uiScale: root.dataset.uiscale || 'normal',
+        theme: root.getAttribute('data-theme') || null,
+      },
+      net: {
+        ws: ws ? ['connecting', 'open', 'closing', 'closed'][ws.readyState] || '?' : 'none',
+        online: navigator.onLine !== false,
+        reconnectAttempt,
+        ...snap.net,
+      },
+      render: {
+        ...snap.render,
+        domNodes: document.getElementsByTagName('*').length,
+        heapMb: mem && mem.usedJSHeapSize ? Math.round(mem.usedJSHeapSize / 104857.6) / 10 : null,
+      },
+      frames: snap.frames || null,
+      longTasks: snap.longTasks || null,
+      game: {
+        screen: screen ? screen.id : null,
+        session: sessionCode || null,
+        stammtisch: !!stammtischInfo,
+        overlays: Array.from(document.querySelectorAll('.overlay:not(.hidden)'), (n) => n.id || n.className),
+        state: debugView ? debugView.summarizeState(lastState, playerId) : null,
+      },
+      errors: snap.errors || [],
+    };
+  }
+  // The panel's markup is static (index.html); markup of an older page has none: nothing to wire.
+  function wireDebugPanel(panel) {
+    if (panel.dataset.wired || !el('dbgBody')) return;
+    panel.dataset.wired = '1';
+    el('dbgPageBtn').addEventListener('click', () => {
+      const pages = debugPages();
+      setDebugPage(pages[(pages.indexOf(debugPage) + 1) % pages.length]);
+    });
+    el('dbgCopyBtn').addEventListener('click', copyDebugReport);
+    el('dbgFoldBtn').addEventListener('click', () => {
+      const folded = !panel.classList.contains('folded');
+      panel.classList.toggle('folded', folded);
+      storageSet(DEBUG_FOLD_KEY, folded ? 'on' : 'off');
+      paintDebugPanel();
+    });
+    // A tap on the values moves the panel to the next corner: it never has to cover the spot in question.
+    el('dbgBody').addEventListener('click', () => {
+      const dock = DEBUG_DOCKS[(DEBUG_DOCKS.indexOf(panel.dataset.dock) + 1) % DEBUG_DOCKS.length];
+      panel.dataset.dock = dock;
+      storageSet(DEBUG_DOCK_KEY, dock);
+    });
+  }
+  function setDebugPage(page) {
+    debugPage = debugPages().includes(page) ? page : 'layout';
+    storageSet(DEBUG_PAGE_KEY, debugPage);
+    paintDebugPanel();
+  }
+  function paintDebugPanel() {
+    debugDirty = false;
+    debugPaintedAt = performance.now();
     const panel = el('debugPanel');
-    if (panel) panel.textContent = lines.join('\n');
+    const body = el('dbgBody');
+    if (!debugLive || !panel || !body) return;
+    const pages = debugPages();
+    el('dbgPageName').textContent = `${debugPageLabel(debugPage)} ${pages.indexOf(debugPage) + 1}/${pages.length}`;
+    if (panel.classList.contains('folded')) return;
+    const report = buildDebugReport();
+    const lines = debugView ? debugView.pageLines(debugPage, report) : ['debug-view.js missing: reload'];
+    const text = [`Pik Dame ${report.version}  ${report.at.slice(11, 19)}Z`].concat(lines).join('\n');
+    if (body.textContent !== text) body.textContent = text;
+  }
+  function debugTick(t) {
+    debugFrameReq = requestAnimationFrame(debugTick);
+    debugNote('frame', t);
+    const since = t - debugPaintedAt;
+    if (since >= DEBUG_PAINT_MS || (debugDirty && since >= DEBUG_PAINT_EVENT_MS)) paintDebugPanel();
+  }
+  function debugPing() {
+    if (!ws || ws.readyState !== WebSocket.OPEN || document.visibilityState === 'hidden') return;
+    if (pingSentAt || (debugStats && debugStats.pingOpen())) return; // one probe at a time
+    try { ws.send('{"type":"ping"}'); } catch (e) { /* the watchdog deals with a dead socket */ }
+  }
+  function startDebugLive() {
+    stopDebugLive();
+    if (typeof requestAnimationFrame === 'function') debugFrameReq = requestAnimationFrame(debugTick);
+    else debugFallbackTimer = setInterval(paintDebugPanel, 1000);
+    debugPingTimer = setInterval(debugPing, DEBUG_PING_MS);
+    debugPing();
+    // Long tasks exist in Chromium only; elsewhere the page says "n/a".
+    try {
+      const types = (window.PerformanceObserver && PerformanceObserver.supportedEntryTypes) || [];
+      if (types.includes('longtask')) {
+        debugLongObs = new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) debugNote('longTask', entry.duration);
+        });
+        debugLongObs.observe({ type: 'longtask' });
+        debugNote('longTasksWatched');
+      }
+    } catch (e) { debugLongObs = null; }
+  }
+  function stopDebugLive() {
+    if (debugFrameReq && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(debugFrameReq);
+    debugFrameReq = 0;
+    clearInterval(debugFallbackTimer);
+    clearInterval(debugPingTimer);
+    debugNote('framesStopped');
+    try { if (debugLongObs) debugLongObs.disconnect(); } catch (e) { /* optional */ }
+    debugLongObs = null;
+  }
+  // The clipboard API needs https; plain http (a LAN test) falls back to a selection.
+  async function copyDebugReport() {
+    let ok = false;
+    try {
+      const text = debugView.reportText(buildDebugReport());
+      try {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      } catch (e) {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+        document.body.appendChild(area);
+        area.select();
+        ok = document.execCommand('copy');
+        area.remove();
+      }
+    } catch (e) { ok = false; }
+    showToast(ok
+      ? L('Debug-Bericht kopiert.', 'Debug report copied.')
+      : L('Kopieren ist hier nicht möglich.', 'Copying is not available here.'), { priority: true, icon: ok ? 'i-check' : undefined });
   }
   function applyDebugMode() {
-    // KRITISCHE LEKTION (Live-Ausfall): Beim PWA-Start kann kurzzeitig ALTES
-    // Markup (ohne die Debug-Elemente) mit NEUEM Script kombiniert sein -
-    // iOS revalidiert das Start-HTML nicht immer, trotz no-cache. Ein
-    // ungefangener null-Zugriff hier brach den gesamten Init ab, BEVOR
-    // connect() lief: 'Neues Spiel', 'Beitreten' und 'Tutorial' waren tot,
-    // und ausgerechnet die Auto-Update-Selbstheilung (Versions-Stempel ->
-    // Reload) kam nie zum Zug. Ein OPTIONALES Feature darf den kritischen
-    // Startpfad niemals töten: alles hier ist null-sicher und gefangen.
+    // Lesson from a live outage: at a PWA start iOS can combine OLD markup
+    // (without these elements) with the NEW script. An optional feature must
+    // never break the start path, so everything here is null-safe and caught.
     try {
       const on = debugEnabled();
       const grid = el('debugGrid');
       const panel = el('debugPanel');
+      debugLive = on;
       document.documentElement.classList.toggle('debugMode', on);
       if (grid) grid.classList.toggle('hidden', !on);
       if (panel) panel.classList.toggle('hidden', !on);
       const box = document.getElementById('debugCheckbox');
       if (box) box.checked = on;
-      clearInterval(debugTimer);
+      stopDebugLive();
       if (on && panel) {
-        updateDebugPanel();
-        debugTimer = setInterval(updateDebugPanel, 1000);
+        wireDebugPanel(panel);
+        panel.classList.toggle('folded', storageGet(DEBUG_FOLD_KEY) === 'on');
+        const dock = storageGet(DEBUG_DOCK_KEY);
+        panel.dataset.dock = DEBUG_DOCKS.includes(dock) ? dock : DEBUG_DOCKS[0];
+        const page = storageGet(DEBUG_PAGE_KEY);
+        debugPage = debugPages().includes(page) ? page : 'layout';
+        paintDebugPanel();
+        startDebugLive();
       }
     } catch (e) {
-      /* Debug ist Komfort - nie kritisch */
+      /* the debug view is a convenience, never critical */
     }
   }
   function toggleDebugMode() {
@@ -13011,10 +13380,22 @@
   try {
     const dbgBox = el('debugCheckbox');
     if (dbgBox) dbgBox.addEventListener('change', toggleDebugMode);
-    window.addEventListener('resize', () => { if (debugEnabled()) updateDebugPanel(); });
+    window.addEventListener('resize', refreshDebugSoon);
+    window.addEventListener('error', (ev) => {
+      debugNote('error', `${ev.message || 'error'} @ ${String(ev.filename || '').split('/').pop()}:${ev.lineno || 0}`);
+    });
+    window.addEventListener('unhandledrejection', (ev) => {
+      debugNote('error', `unhandled rejection: ${ev.reason && ev.reason.message ? ev.reason.message : ev.reason}`);
+    });
+    // For browser checks (Playwright, ui-shots): the report without the panel, whether the view is on or not.
+    window.pikdameDebug = {
+      report: buildDebugReport,
+      text: () => debugView.reportText(buildDebugReport()),
+      page: (name) => { setDebugPage(name); return debugPage; },
+    };
     applyDebugMode();
   } catch (e) {
-    /* siehe oben: optional bricht nie den Start */
+    /* see above: optional never breaks the start */
   }
 
   let resizeTimer = null;
@@ -13031,12 +13412,6 @@
     if (meldsEl) meldsObs.observe(meldsEl, { childList: true, subtree: true });
     window.addEventListener('resize', updateMeldScrollHint);
   } catch (e) { /* Hinweis-Kante ist Komfort, nie kritisch */ }
-
-  // Debug-Panel: Tipp wechselt oben/unten, damit es keine Diagnose verdeckt.
-  try {
-    const dp = el('debugPanel');
-    if (dp) dp.addEventListener('click', () => dp.classList.toggle('dockBottom'));
-  } catch (e) { /* optional */ }
 
   // --- Studio-Vorspann "Flodex Interactive" ---------------------------------
   // auto = once per device, always = every load, off = never; a tap skips it.
@@ -13105,6 +13480,202 @@
     });
     el('celebrationPreviewBtn').addEventListener('click', () => playCelebration(el('celebrationSelect').value, el('celebrationPreview')));
     updateCelebrationSetting();
+  } catch (e) { /* Einstellung ist Komfort */ }
+
+  // --- Table pets (game/Pets.js, public/pet.js) -------------------------------
+  // The choice lives on the profile, the switch "Haustiere am Tisch" on the device.
+  // pet.js draws and names the mood; here MY pet gets its place (the other seats' pets
+  // stay away for now, the seats still carry them), keeps its rhythm and likes being stroked.
+  const PETS_KEY = 'pikdame_pets';
+  const PET_NEWS_KEY = 'pikdame_pet_news'; // "a pet is waiting for you" was said on this device
+  // Where it may sit, best first: [size px, how the spot is found]. It keeps this much air to the next thing.
+  const PET_AIR_PX = 8;
+  const PET_SIZE_BESIDE_PX = 56; // right of the discard pile
+  const PET_SIZE_BELOW_PX = 48; // under the piles (side column)
+  let petsOn = storageGet(PETS_KEY) !== 'off';
+  const petBorn = {}; // key -> when the pet first showed (keeps the rhythm)
+  const petFx = {}; // seat id -> { mood, until }: a reaction that runs out
+  let petTurn = { id: null, since: 0 }; // who is on turn, since when (for the yawn)
+  let petTimer = null;
+  let petPose = ''; // the pose last drawn: getting up from lying is shown once
+  let petPettedUntil = 0; // stroked: it purrs until then
+  let petBuzzAt = 0;
+  function myPetChoice() {
+    const me = myProfile();
+    return (me && me.pet) || 'none';
+  }
+  function updatePetSetting() {
+    const item = el('petItem');
+    if (!item) return; // a stale cached page: the setting just waits
+    item.classList.toggle('hidden', publicMode || !petApi);
+    const sel = el('petSelect');
+    const level = myLevel();
+    for (const opt of sel.options) {
+      const pt = PET_LIST.find((x) => x.id === opt.value);
+      if (!pt) continue;
+      const locked = level < pt.level;
+      opt.disabled = locked;
+      opt.textContent = locked ? `${L(pt.de, pt.en)} · ${L(`ab Stufe ${pt.level}`, `level ${pt.level}`)}` : L(pt.de, pt.en);
+    }
+    sel.value = myPetChoice();
+    const allowed = canPickFavorites();
+    sel.disabled = !allowed;
+    el('petHint').textContent = allowed
+      ? L('Liegt bei dir am Tisch', 'Lies beside you at the table')
+      : L('Mit Konto wählbar', 'Sign in to choose');
+    // The preview shows the first pet there is, also while it is still locked: something to look forward to.
+    const shown = PET_LIST.find((x) => x.id === sel.value && x.id !== 'none') || PET_LIST.find((x) => x.id !== 'none');
+    const mine = sel.value !== 'none';
+    const text = mine
+      ? L('Sie liegt neben deinem Ablagestapel, richtet sich auf, wenn du dran bist, und freut sich mit dir.', 'It lies beside your discard pile, sits up when it is your turn and is happy with you.')
+      : level < shown.level
+        ? L(`Ab Stufe ${shown.level} zieht sie bei dir ein.`, `It moves in with you at level ${shown.level}.`)
+        : L('Wartet darauf, an deinen Platz zu dürfen.', 'Waiting to come to your seat.');
+    el('petPreview').innerHTML = petApi
+      ? `${petApi.html(shown.id, { mood: mine ? 'happy' : level < shown.level ? 'sleep' : 'idle', collar: PLAYER_COLORS[0], born: petBornOf('preview') })}<span class="petPreviewText">${escapeHtml(text)}</span>`
+      : '';
+  }
+  function petBornOf(key) {
+    if (!petBorn[key]) petBorn[key] = Date.now();
+    return petBorn[key];
+  }
+  /** "Haustiere am Tisch": off, no pet is drawn on this device. */
+  function setPetsOn(on) {
+    petsOn = on;
+    storageSet(PETS_KEY, on ? 'on' : 'off');
+    const box = el('petsCheckbox');
+    if (box) box.checked = on;
+    renderPets();
+  }
+  /** A reaction that started with this state (the Queen of Spades melded), and who is on turn since when. */
+  function notePetEvents(prev, st) {
+    if (!petApi || !st) return;
+    const now = Date.now();
+    Object.assign(petFx, petApi.eventsBetween(prev, st, now));
+    if (st.currentPlayerId !== petTurn.id || !prev || prev.roundNumber !== st.roundNumber) petTurn = { id: st.currentPlayerId, since: now };
+  }
+  function petMoodOf(seatId) {
+    const now = Date.now();
+    return petApi.mood(lastState, seatId, { fx: petFx[seatId], turnMs: petTurn.id === seatId ? now - petTurn.since : 0, now });
+  }
+  /** A tap on my pet or a finger running over it: it purrs for a while, in the pose it has. */
+  function strokePet() {
+    if (!petApi) return;
+    const now = Date.now();
+    petPettedUntil = now + petApi.PET_MS;
+    if (now - petBuzzAt > 450) { petBuzzAt = now; vibrate(8); }
+    // Only the class: a finger running over it calls this many times a second (no layout, no re-draw).
+    for (const home of [el('tablePet'), el('myPet')]) if (home && home.firstChild) home.firstChild.classList.add('petPetted');
+  }
+  /** Whoever may have a pet and has none hears of it once: the level was reached before pets came. */
+  function maybeAnnouncePet() {
+    if (!petApi || publicMode || !canPickFavorites() || myPetChoice() !== 'none' || storageGet(PET_NEWS_KEY)) return;
+    if (!el('table').classList.contains('hidden')) return; // at the table it waits for the lobby
+    const level = myLevel();
+    const pt = PET_LIST.find((x) => x.id !== 'none' && level >= x.level);
+    if (pt) enqueueUnlocks([{ kind: 'pet', id: pt.id }]);
+  }
+  /**
+   * A free place for my pet beside the piles, or null: right of the discard pile (portrait),
+   * else under the piles (the side column of landscape and desktop). Free means: on the table,
+   * above the hand tray and, point by point, nothing visible there but the table itself (what is
+   * scrolled away under the strip does not count, what the fan lifts up there does).
+   */
+  function petSpotInPiles() {
+    const strip = el('centerPiles');
+    const box = strip.getBoundingClientRect();
+    const table = el('table').getBoundingClientRect();
+    const tray = el('handWrapper').getBoundingClientRect();
+    const pileEl = el('discardPile');
+    const face = el('discardTopCard').getBoundingClientRect();
+    if (!box.width || !face.width || typeof document.elementFromPoint !== 'function') return null; // no layout (hidden table)
+    const own = el('tablePet');
+    const pad = PET_AIR_PX;
+    const free = (x, y, size) => {
+      if (x - pad < table.left || x + size + pad > table.right || y - pad < table.top || y + size + pad > tray.top) return false;
+      for (let ix = 0; ix <= 4; ix++) {
+        for (let iy = 0; iy <= 4; iy++) {
+          const hit = document.elementFromPoint(x - pad + ((size + pad * 2) * ix) / 4, y - pad + ((size + pad * 2) * iy) / 4);
+          if (hit && hit !== strip && !own.contains(hit) && hit.id !== 'table') return false;
+        }
+      }
+      return true;
+    };
+    // The pile with all that hangs on it (its count sticks out at the top right).
+    const parts = [pileEl, ...pileEl.querySelectorAll('*')].map((n) => n.getBoundingClientRect()).filter((r) => r.width > 0);
+    const right = Math.max(...parts.map((r) => r.right));
+    const lowest = Math.max(...[...strip.children].filter((c) => c !== own).map((c) => c.getBoundingClientRect().bottom));
+    const spots = [
+      // On the floor the pile's card stands on, a little air to its right.
+      { size: PET_SIZE_BESIDE_PX, x: right + pad + 2, y: face.bottom - PET_SIZE_BESIDE_PX },
+      // Side column: under the piles, in line with the discard pile.
+      { size: PET_SIZE_BELOW_PX, x: Math.min(face.left + (face.width - PET_SIZE_BELOW_PX) / 2, table.right - PET_SIZE_BELOW_PX - pad - 2), y: lowest + pad + 6 },
+    ];
+    const spot = spots.find((sp) => free(sp.x, sp.y, sp.size));
+    return spot ? { size: spot.size, left: spot.x - box.left, top: spot.y - box.top } : null;
+  }
+  /** Puts my pet in its place: beside the piles where there is room, else in the tray's row, else nowhere. Safe to call any time. */
+  function renderPets() {
+    const trayBox = el('myPet');
+    const pileBox = el('tablePet');
+    if (!trayBox || !pileBox) return; // a stale cached page
+    const atTable = petApi && petsOn && lastState && lastState.phase !== 'lobby';
+    const me = atTable ? (lastState.players || []).find((p) => p.id === playerId && !p.isBot && !p.leftGame && petApi.isPet(p.pet)) : null;
+    const mood = me ? petMoodOf(me.id) : '';
+    const spot = me ? petSpotInPiles() : null;
+    const home = spot ? pileBox : trayBox;
+    for (const box of [pileBox, trayBox]) {
+      if (!me || box !== home) { if (box.firstChild) box.innerHTML = ''; box.dataset.mood = ''; continue; }
+      if (box.dataset.mood !== mood || !box.firstChild) {
+        const pose = petApi.poseOf(mood);
+        box.innerHTML = petApi.html(me.pet, { mood, collar: playerColor(me.id), born: petBornOf(me.id), rose: petPose === 'lie' && pose === 'sit' });
+        petPose = pose;
+        box.dataset.mood = mood;
+      }
+      box.firstChild.classList.toggle('petPetted', Date.now() < petPettedUntil);
+    }
+    if (!me) petPose = '';
+    if (spot && pileBox.firstChild) {
+      pileBox.style.left = `${Math.round(spot.left)}px`;
+      pileBox.style.top = `${Math.round(spot.top)}px`;
+      pileBox.firstChild.style.setProperty('--pet-size', `${spot.size}px`);
+    }
+    const bar = trayBox.closest('.handToolbar');
+    if (bar) {
+      // In the tray's row it shares the width with count, score and round: when it would cut them, it stays away.
+      bar.classList.toggle('hasPet', !!trayBox.firstChild);
+      const cut = (e) => e.clientWidth > 0 && e.scrollWidth > e.clientWidth + 1;
+      const meta = bar.querySelector('.handMeta');
+      if (trayBox.firstChild && meta && [meta, ...meta.querySelectorAll('*')].some(cut)) {
+        trayBox.innerHTML = '';
+        trayBox.dataset.mood = '';
+        bar.classList.remove('hasPet');
+      }
+    }
+    // Moods that depend on the clock (a reaction running out, the yawn) and a place that frees up: look again while it is there.
+    if (me && !petTimer) petTimer = setInterval(() => { try { renderPets(); } catch (e) { /* decoration */ } }, 700);
+    else if (!me && petTimer) { clearInterval(petTimer); petTimer = null; }
+  }
+  try {
+    el('petSelect').addEventListener('change', () => {
+      if (!canPickFavorites()) { updatePetSetting(); return; }
+      storageSet(PET_NEWS_KEY, '1'); // found it: no need to point there again
+      send({ type: 'setPet', name: myName, pet: el('petSelect').value, accountToken: accountToken() || undefined });
+    });
+    // Stroking: a tap, or a finger (or pressed mouse) running over it. The boxes stay, the figure in them is re-drawn.
+    for (const home of [el('tablePet'), el('myPet')]) {
+      if (!home) continue;
+      home.addEventListener('pointerdown', (ev) => {
+        try { home.setPointerCapture(ev.pointerId); } catch (e) { /* the stroke counts anyway */ }
+        strokePet();
+      });
+      home.addEventListener('pointermove', (ev) => { if (ev.pointerType === 'touch' || ev.buttons) strokePet(); });
+      home.addEventListener('click', strokePet); // keyboard and anything without pointer events
+    }
+    const box = el('petsCheckbox');
+    box.checked = petsOn;
+    box.addEventListener('change', () => setPetsOn(box.checked));
+    updatePetSetting();
   } catch (e) { /* Einstellung ist Komfort */ }
 
   try {

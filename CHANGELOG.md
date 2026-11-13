@@ -3,6 +3,64 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.141.0] - 2026-11-13
+
+### Added
+- Spielende: Der Punkteverlauf zeichnet sich selbst. Die Linien laufen in gut
+  einer Sekunde von Runde zu Runde, bei jedem Führungswechsel blitzt kurz eine
+  Markierung in der Farbe des neuen Führenden auf, Namen und Endstände erscheinen
+  am Ziel. Alle Knöpfe sind sofort bedienbar
+- Optionen → Darstellung: „Punkteverlauf zeichnen“ schaltet das ab
+  (bei „Bewegung reduzieren“ im System steht das Diagramm ohnehin sofort fertig da)
+
+### Changed
+- Abhängigkeiten aktualisiert (automatischer Dependabot-Check): hono 4.13.13→4.13.18
+
+## [2.140.0] - 2026-11-13
+
+### Added
+- Haustier: Ab Stufe 12 zieht eine Katze bei dir ein. Sie liegt rechts neben deinem Ablagestapel (im Querformat und am Desktop unter den Stapeln), ohne etwas zu verdecken. In Ruhe liegt sie, bist du am Zug, richtet sie sich auf. Sie blinzelt, zuckt mit dem Schwanz und reagiert auf dein Spiel: Herzchen, wenn du die Pik Dame auslegst, ein Hüpfer beim Rundensieg, angelegte Ohren, wenn du mit der Dame erwischt wirst, ein Gähnen bei langen Zügen. Bist du weg, schläft sie.
+  Gewählt wird sie unter „Optionen“ (mit Konto). Ihr Halsband trägt deine Spielerfarbe.
+- Streicheln: Tippe die Katze an oder fahr mit dem Finger über sie, dann schnurrt sie, kneift die Augen zu und es steigen Herzchen auf. Sie bleibt dabei, wie sie ist: liegend oder sitzend.
+- Wer Stufe 12 schon erreicht hat, sieht auf dem Startbildschirm einmal die Karte „Eine Katze wartet auf dich“; ein Tipp darauf öffnet die Auswahl in den Optionen.
+- Optionen: „Haustiere am Tisch“ blendet sie auf diesem Gerät aus.
+
+### Removed
+- Die Spielhilfe „Hinweis bei wenigen Karten“ gibt es nicht mehr. Wer nur noch eine oder zwei Karten hält, wird am Tisch nicht mehr markiert: Darauf zu achten gehört zum Spiel. Die Kartenzahl steht weiter an jedem Platz.
+
+## [2.139.0] - 2026-11-13
+
+### Added
+- Debug-Ansicht: „Bericht kopieren“ legt alle Werte als Text in die Zwischenablage,
+  zum Einfügen in eine Fehlermeldung (ohne Anmelde- oder Sitzplatz-Geheimnisse)
+
+### Changed
+- Debug-Ansicht (Optionen → „Debug-Ansicht“) ist jetzt live und hat vier Seiten:
+  Layout, Netz (Laufzeit zum Server, Nachrichten, Datenmenge, Verbindungsabbrüche),
+  Render (Bilder pro Sekunde, Zeichendauer, Fehler) und Spiel (Phase, Runde, wer dran ist, Stapel)
+- Der Seiten-Knopf blättert, der Käfer klappt die Werte ein, ein Tipp auf die Werte
+  schiebt das Feld in die nächste Ecke – alles bleibt auf dem Gerät gespeichert
+
+## [2.138.0] - 2026-11-12
+
+### Added
+- Zehn neue Abzeichen-Familien mit je drei Stufen: Volles Haus (Satz mit allen 8 Karten eines Werts), Asse hoch (6+ Asse in einer Runde), Wechselstube (Joker getauscht), Blitzrunde (in höchstens 5 eigenen Zügen ausgemacht), Durchmarsch (Partie in höchstens 5 Runden gewonnen), Punktlandung (genau die Zielpunktzahl), Stapelräuber (Ablagestapel aufgenommen), Teamgeist (Siege in „2 gegen 2“), Stammgast (Partien am Stammtisch, 10/50/100) und Frühaufsteher (Partie zwischen 5 und 7 Uhr beendet).
+  Gezählt wird ab jetzt; nur die Stammtisch-Partien zählen von Anfang an mit.
+
+## [2.137.0] - 2026-11-12
+
+### Added
+- Neue Reaktion am Tisch: Staunen 😲, ab Stufe 7
+
+### Changed
+- Bots antworten jetzt auf alle Reaktionen, auch auf die freigespielten
+  (ab Stufe 14), die Feiertags-Emotes und 🎂 am Ehrentag
+- Bots beziehen ihre Antwort auf das, was gerade am Tisch passiert ist: Wer
+  nach einer gewonnenen Runde jubelt, bekommt ein Grummeln vom Bot mit den
+  meisten Minuspunkten, ein Bot mit der Pik Dame auf der Hand reagiert
+  ertappt, und bei „2 gegen 2“ jubelt der Partner mit
+- Auf ⏳, 🐢, 👀 und 🤔 antwortet der Bot, der gerade am Zug ist
+
 ## [2.136.0] - 2026-11-12
 
 ### Added

@@ -20,6 +20,7 @@
 // Scenes: lobby, lobby-open, progress, stats, stats-badges (trophy cabinet + a favourite's
 // detail, then a rare badge's; favourites show with --signed-in), history, roundend, roundend-stats, gameover,
 // gameover-stats (its Statistik tab: game totals open, new achievements),
+// gameover-chart / gameover-chart-team (the score chart drawing itself, frozen at --film ms, then its end),
 // table (needs --state <file>: a GameManager.publicState('p1') JSON in the playing phase),
 // table-stammtisch (an engine table at the mock Stammtisch, seen by a guest: Oma Gerda organizes, bots on Mittel),
 // puzzle / puzzle-turn / puzzle-out (one meld laid), puzzle-refused (two melds laid at once: refused), puzzle-solved (3 stars + the tile),
@@ -33,7 +34,8 @@
 // meld, a lay-off, a joker swapped out), the same way; own-perf: what those moves cost the page
 // (CDP Performance.getMetrics, no shots),
 // game-settings (the gear at a live engine table: the sheet on top, then scrolled to its end),
-// game-settings-debug (that sheet with the debug view on), home (the home dialog at the table, then
+// game-settings-debug (that sheet with the debug view on), table-debug (the debug view at a live
+// table: its pages layout/net/render/game, then folded), home (the home dialog at the table, then
 // its forfeit button armed by a first tap),
 // sheet-reopen (settings sheet scrolled, closed, reopened), cardback (the card-back gallery, then a locked back tapped: its toast),
 // tablemark (the table motif gallery, then a locked motif tapped: its toast; --mark <id> stores and unlocks that motif,
@@ -62,6 +64,7 @@
 // --tap <selector>: tapped before the shot ('a;b' taps in order); --tag names the variant in the file name;
 // --tap-freeze <ms> holds every animation at that moment (a frame of a fold mid-glide).
 // --measure writes <out>/measure.json: the table regions (melds, hand, piles ...) per shot.
+// unlock-pet (--signed-in): the one-time "a cat is waiting" card on the start screen, then tapped.
 // unlock / unlock-lobby / unlock-roundend / unlock-gameover / unlock-queue: the badge unlock card
 // on a running table (--badge <id>), the start screen, the result sheets, and its "+N" fold.
 // gameover-win (I win the match, a new badge), stats-empty (a brand-new name: statistics
@@ -142,6 +145,8 @@ const ADMIN = process.argv.includes('--admin');
 const STILL = process.argv.includes('--reduced-motion'); // prefers-reduced-motion: reduce
 const DECEMBER = process.argv.includes('--december');
 const MEASURE = process.argv.includes('--measure');
+// --report: the client's debug report (window.pikdameDebug.report()) per shot, as <shot>.debug.json.
+const REPORT = process.argv.includes('--report');
 const TOWER_MOCK = arg('tower', 'mid');
 const CELEBRATION = arg('celebration', '');
 const celebrating = CELEBRATION ? { celebration: CELEBRATION } : {};
@@ -295,6 +300,13 @@ const GAME_OVER_WIN = { ...GAME_OVER, totals: { p1: 1045, b1: 880, b2: 610, b3: 
     : i === a.length - 2 ? { round: h.round, totals: { p1: 820, b1: 700, b2: 500, b3: 260 } } : h)),
   lastRoundResult: { p1: mk(225, true), b1: mk(180), b2: mk(110), b3: mk(60) },
   gameOverInfo: { ...GAME_OVER.gameOverInfo, winnerId: 'p1' } };
+
+// gameover-chart: a match with three lead changes (rounds 2, 4 and the last one).
+const GAME_OVER_SWING = { ...GAME_OVER,
+  scoreHistory: [SCORE_HISTORY[0], SCORE_HISTORY[1], { round: 3, totals: { p1: 300, b1: 520, b2: 200, b3: 40 } },
+    { round: 4, totals: { p1: 610, b1: 580, b2: 380, b3: 190 } }, { round: 5, totals: { p1: 800, b1: 760, b2: 500, b3: 260 } },
+    { round: 6, totals: GAME_OVER.totals }],
+  lastRoundResult: { p1: mk(80), b1: mk(285, true), b2: mk(110), b3: mk(60) } };
 
 // "2 gegen 2" (roundend-team, gameover-team, gameover-team-win): Flo and Oma Gerda
 // (team A, seats 0+2) against the bots Klaus and Horst (team B, seats 1+3).
@@ -867,7 +879,7 @@ async function fanOut() {
       if (!vp) throw new Error(`unknown view ${vn}`);
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, userAgent: UA, deviceScaleFactor: Number(arg('scale', 2)), isMobile: vp.mobile, hasTouch: vp.mobile,
         ...(STILL ? { reducedMotion: 'reduce' } : {}) });
-      await ctx.addInitScript(([me, theme, musicHint, stammtische, uiLang, uiScale, mark, ownMoves]) => {
+      await ctx.addInitScript(([me, theme, musicHint, stammtische, uiLang, uiScale, mark, petNews, ownMoves]) => {
         try {
           // My cards in flight: the how-to tip of my first turns would lie in their way.
           if (ownMoves) localStorage.setItem('pikdame_tip_seen', '9');
@@ -882,9 +894,11 @@ async function fanOut() {
           localStorage.setItem('pikdame_stammtische', JSON.stringify(tables.slice(0, stammtische)));
           // The first click starts the music; its one-time hint would sit on every later shot.
           if (!musicHint) localStorage.setItem('pikdame_music_hint', '1');
+          // "A cat is waiting for you" pops once per device on a signed-in start screen; only its own scene shows it.
+          if (!petNews) localStorage.setItem('pikdame_pet_news', '1');
           if (mark) localStorage.setItem('pikdame_table_mark', mark); // --mark <id>
         } catch (e) { /* storage blocked */ }
-      }, [ME, arg('theme', ''), scenes.includes('music-hint'), Math.max(0, Math.min(3, Number(arg('stammtische', 1)))), arg('lang', ''), arg('ui-scale', ''), MARK, scenes.some((sc) => /^own-/.test(sc))]);
+      }, [ME, arg('theme', ''), scenes.includes('music-hint'), Math.max(0, Math.min(3, Number(arg('stammtische', 1)))), arg('lang', ''), arg('ui-scale', ''), MARK, scenes.includes('unlock-pet'), scenes.some((sc) => /^own-/.test(sc))]);
       const pageCss = [LIGHT_CSS, vp.mobile ? SAFE_AREA_CSS : ''].filter(Boolean).join('\n');
       if (pageCss) {
         await ctx.addInitScript((cssText) => {
@@ -942,6 +956,14 @@ async function fanOut() {
         written.push(file);
         if (AUDIT) audits.push({ view: vn, scene: name, ...(await page.evaluate(auditPage, TAP_MIN)) });
         if (MEASURE) measures[`${vn}-${name}`] = await page.evaluate(measurePage);
+        if (REPORT) {
+          const report = await page.evaluate(() => (window.pikdameDebug ? window.pikdameDebug.report() : null));
+          if (report) {
+            const json = path.join(OUT, `${vn}-${name}.debug.json`);
+            fs.writeFileSync(json, JSON.stringify(report, null, 1));
+            written.push(json);
+          }
+        }
       };
       const inject = (obj) => sock.send(JSON.stringify(BIRTHDAY && obj.type === 'state' ? { ...obj, state: { ...obj.state, birthdayToday: true } } : obj));
       // --celebration: a seeded Math.random (mulberry32) right before the band is drawn: the same rain every run.
@@ -1224,11 +1246,12 @@ async function fanOut() {
           await shot('tower-motion-3-land');
           await page.click('#towerCloseBtn');
         }
-        if (sc === 'settings' || sc === 'settings-aids' || sc === 'settings-music') {
+        if (sc === 'settings' || sc === 'settings-aids' || sc === 'settings-music' || sc === 'settings-pet') {
           await page.click('#settingsBtnLobby'); await page.waitForTimeout(400);
           // settings-aids: scrolled to the play aids at the end of the sheet.
-          if (sc === 'settings-aids') await page.evaluate(() => document.getElementById('aidLowCardsCheckbox').scrollIntoView({ block: 'center' }));
+          if (sc === 'settings-aids') await page.evaluate(() => document.getElementById('aidLayOffCheckbox').scrollIntoView({ block: 'center' }));
           if (sc === 'settings-music') await page.evaluate(() => document.getElementById('musicItem').scrollIntoView({ block: 'center' }));
+          if (sc === 'settings-pet') await page.evaluate(() => document.getElementById('petItem').scrollIntoView({ block: 'center' }));
           await shot(sc);
           await page.click('#settingsOverlayCloseBtn');
         }
@@ -1283,6 +1306,27 @@ async function fanOut() {
             await page.evaluate((s) => { const o = document.querySelector(s).closest('.overlay'); o.classList.add('hidden'); }, sel);
             await page.waitForTimeout(200);
           }
+        }
+        if (sc === 'table-debug') {
+          // The debug view at a live engine table: one shot per page, then folded to its button.
+          await toTable(arg('state', '') ? JSON.parse(fs.readFileSync(arg('state', ''), 'utf8')) : tableState());
+          await page.evaluate(() => document.getElementById('debugCheckbox').click());
+          for (const name of await page.evaluate(() => window.PikdameDebugView.PAGES)) {
+            await page.evaluate((n) => window.pikdameDebug.page(n), name);
+            await page.waitForTimeout(700); // frames and the first round trip
+            await shot(`table-debug-${name}`);
+          }
+          // Live values and the copy button, printed: a still picture shows neither.
+          await page.evaluate(() => window.pikdameDebug.page('net'));
+          const before = await page.textContent('#dbgBody');
+          await page.waitForTimeout(700);
+          const live = before !== await page.textContent('#dbgBody');
+          await page.click('#dbgCopyBtn'); await page.waitForTimeout(300);
+          console.log(`${vn}-table-debug: values live ${live}, copy says "${(await page.textContent('#toastContainer')).trim()}"`);
+          await page.click('#dbgFoldBtn'); await page.waitForTimeout(200);
+          await shot('table-debug-folded');
+          await page.click('#dbgFoldBtn');
+          await page.evaluate(() => document.getElementById('debugCheckbox').click());
         }
         if (sc === 'sheet-reopen') {
           // Scroll the settings sheet down, close, reopen: it must be at the top again.
@@ -1423,6 +1467,80 @@ async function fanOut() {
           if (arg('js', '')) await page.evaluate(fs.readFileSync(arg('js', ''), 'utf8')); // --js <file>: DOM mockups
           await page.waitForTimeout(200);
           await shot(sc);
+        }
+        // Table pets (public/pet.js): my cat beside the piles, then stroked (a real pointer on it: it purrs where it is).
+        // --pets-case crowd: a full table of humans with long names, one of them dropped out; --pets-mood asleep|turn.
+        // Every run measures: the pet must lie on nothing and stay inside the piles strip / the tray (prints "pets: ...").
+        if (sc === 'pets') {
+          let st;
+          if (arg('pets-case', 'team') === 'crowd') {
+            st = oppTurnStates('draw').before;
+            const names = ['Maximilian-Alexander', 'Oma Gerda', 'Wilhelmine'];
+            st.players.filter((p) => p.id !== 'p1').forEach((p, i) => {
+              Object.assign(p, { isBot: false, name: names[i], botDifficulty: undefined, pet: 'cat', controlledByBot: i === 2 });
+              if (i === 1) st.dealerId = p.id;
+            });
+            st.players.find((p) => p.id === 'p1').pet = 'cat';
+          } else {
+            st = teamTableState();
+            for (const p of st.players) if (!p.isBot) p.pet = 'cat';
+          }
+          // My turn: it sits up. Not my turn: it lies. Away (asleep): it sleeps.
+          const me = st.players.find((p) => p.id === 'p1');
+          if (arg('pets-mood', '') === 'turn') st.currentPlayerId = 'p1';
+          if (arg('pets-mood', '') === 'rest') st.currentPlayerId = st.players.find((p) => p.id !== 'p1').id;
+          if (arg('pets-mood', '') === 'asleep') me.controlledByBot = true;
+          inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+          inject({ type: 'state', state: st });
+          await page.waitForTimeout(1300);
+          const report = await page.evaluate(() => {
+            const r = (e) => { const b = e.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height }; };
+            const hit = (a, b) => a.w > 0 && b.w > 0 && a.x < b.x + b.w - 0.5 && b.x < a.x + a.w - 0.5 && a.y < b.y + b.h - 0.5 && b.y < a.y + a.h - 0.5;
+            const inside = (a, b) => a.x >= b.x - 0.5 && a.y >= b.y - 0.5 && a.x + a.w <= b.x + b.w + 0.5 && a.y + a.h <= b.y + b.h + 0.5;
+            const out = [];
+            const pets = [...document.querySelectorAll('#table .pet')];
+            for (const pet of pets) {
+              const pr = r(pet);
+              const beside = !!pet.closest('#tablePet');
+              const who = pet.closest('#opponents') ? 'a pet on a chip (none should be there)' : `my pet (${beside ? 'beside the piles' : 'in the tray row'}, ${pet.className.match(/pose-\w+/)[0]})`;
+              let home = r(document.getElementById('handWrapper'));
+              if (beside) { // on the table, above the hand tray
+                const t = r(document.getElementById('table'));
+                home = { x: t.x, y: t.y, w: t.w, h: home.y - t.y };
+              }
+              if (pet.closest('#opponents')) out.push(`${who}: lies on a chip`);
+              else if (!inside(pr, home)) out.push(`${who}: sticks out of ${beside ? 'the table above the tray' : 'its tray'}`);
+              const leaves = [...document.querySelectorAll('#table *')].filter((e) => !pet.contains(e) && !e.contains(pet) && e.children.length === 0 && e.getClientRects().length);
+              const seen = (e) => { // clipped or covered parts do not count: ask the page at the middle of the shared area
+                const er = r(e);
+                const cx = (Math.max(pr.x, er.x) + Math.min(pr.x + pr.w, er.x + er.w)) / 2;
+                const cy = (Math.max(pr.y, er.y) + Math.min(pr.y + pr.h, er.y + er.h)) / 2;
+                return document.elementsFromPoint(cx, cy).includes(e);
+              };
+              for (const e of leaves) if (hit(pr, r(e)) && seen(e)) out.push(`${who}: lies on <${e.tagName.toLowerCase()} class="${e.getAttribute('class') || ''}"> "${(e.textContent || '').trim().slice(0, 20)}" in ${e.parentElement.id || e.parentElement.getAttribute('class')}`);
+              out.push(`${who}: ${Math.round(pr.w)}px`);
+            }
+            return { pets: pets.length, lines: out };
+          });
+          if (arg('js', '')) { // a scratch probe that leaves its report in #petMeasure
+            await page.evaluate(fs.readFileSync(arg('js', ''), 'utf8'));
+            console.log(await page.evaluate(() => (document.getElementById('petMeasure') || {}).textContent || ''));
+          }
+          const bad = report.lines.filter((l) => /sticks out|lies on/.test(l));
+          console.log(`pets [${vn}${arg('ui-scale', '') ? ` ${arg('ui-scale', '')}` : ''}, ${arg('pets-case', 'team')}${arg('pets-mood', '') ? ` ${arg('pets-mood', '')}` : ''}]: ${report.pets} shown, ${bad.length ? 'OVERLAP' : 'no overlap'}\n  ${report.lines.join('\n  ')}`);
+          await shot(`pets${arg('pets-case', 'team') === 'crowd' ? '-crowd' : ''}${arg('pets-mood', '') ? `-${arg('pets-mood', '')}` : ''}`);
+          if (!arg('pets-mood', '') && arg('pets-case', 'team') !== 'crowd') {
+            const at = await page.evaluate(() => { const c = document.querySelector('#tablePet .pet, #myPet .pet'); const b = c && c.getBoundingClientRect(); return b ? [b.left + b.width / 2, b.top + b.height / 2] : null; });
+            if (at) { await page.mouse.move(at[0], at[1]); await page.mouse.down(); await page.mouse.move(at[0] + 6, at[1]); await page.mouse.up(); }
+            await page.waitForTimeout(700);
+            await shot('pets-stroked');
+          }
+          // --pets-stroke: every case and mood can be shot stroked too.
+          if (process.argv.includes('--pets-stroke')) {
+            await page.evaluate(() => { const c = document.querySelector('#tablePet .pet, #myPet .pet'); if (c) c.click(); });
+            await page.waitForTimeout(700);
+            await shot(`pets${arg('pets-case', 'team') === 'crowd' ? '-crowd' : ''}${arg('pets-mood', '') ? `-${arg('pets-mood', '')}` : ''}-stroked`);
+          }
         }
         // Joker choice dialog over a table: "set or run?" or, with --joker layoff, which end.
         if (sc === 'joker-choice') {
@@ -1645,6 +1763,24 @@ async function fanOut() {
           if (arg('eval', '')) console.log(`${vn}-${sc}:`, JSON.stringify(await page.evaluate(fs.readFileSync(arg('eval', ''), 'utf8'))));
           await shot(`${sc}-${stage}${arg('tag', '') ? `-${arg('tag', '')}` : ''}`);
         }
+        // unlock-pet (with --signed-in): the level is there, no pet yet - the one-time card on the start screen,
+        // then (unlock-pet-open) a tap on it: the options at the pet choice.
+        if (sc === 'unlock-pet') {
+          // The first start screen of this run has said it already: forget that, and any table of an earlier scene.
+          await page.evaluate(() => { try { localStorage.removeItem('pikdame_last_session'); localStorage.removeItem('pikdame_pet_news'); } catch (e) { /* blocked */ } });
+          await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
+          await page.waitForTimeout(2600);
+          // Other cards of the mock (a season award) go first: close them until the pet's card is up.
+          for (let i = 0; i < 4 && !(await page.$('#unlockLayer .unlockCard:not(.leaving) .unlockArt .pet')); i++) {
+            const x = await page.$('#unlockLayer .unlockCard:not(.leaving) .unlockClose');
+            if (x) await x.click();
+            await page.waitForTimeout(1500);
+          }
+          await shot(sc);
+          const main = await page.$('#unlockLayer .unlockCard:not(.leaving) .unlockArt .pet') && await page.$('#unlockLayer .unlockCard:not(.leaving) .unlockMain');
+          if (main) { await main.click(); await page.waitForTimeout(700); await shot(`${sc}-open`); }
+          else console.log(`unlock-pet [${vn}]: NO CARD (needs --signed-in)`);
+        }
         if (/^unlock(-lobby|-queue|-roundend|-gameover)?$/.test(sc)) {
           // Badge unlock cards: a fresh page each (it pops a badge only once). unlock: on a running
           // table (--badge <id>, default wins_10), -lobby: the start screen, -roundend/-gameover:
@@ -1674,7 +1810,84 @@ async function fanOut() {
           await page.waitForTimeout(1400); // slide-in, the medal's pop and the sweep of light
           await shot(sc);
         }
-        if (sc === 'gameover-tower') {
+        if (sc === 'gameover-chart' || sc === 'gameover-chart-team') {
+          // The score chart draws itself (public/score-chart.js): frames frozen --film ms after the
+          // sheet opened, then its end. A round end between two openings: the next one draws again.
+          const team = sc.endsWith('-team');
+          const open = async () => {
+            inject({ type: 'state', state: team ? TEAM_ROUND_END : ROUND_END });
+            await page.waitForTimeout(300);
+            inject({ type: 'state', state: team ? TEAM_GAME_OVER : GAME_OVER_SWING });
+            inject({ type: 'progress', gainedXp: 120, xp: 5440, level: { level: 14 }, record: { played: 43, won: 17 } });
+            await page.waitForTimeout(40);
+            await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+            // It starts once seen. Below the fold (landscape, small phones) the scene scrolls to it;
+            // where the sheet opens with the chart in view, the frame is the sheet as it opens.
+            await page.evaluate(() => {
+              const c = document.querySelector('#resultBody .scoreChartSvg');
+              const b = document.getElementById('resultBody');
+              if (!c || !b) return;
+              b.scrollTop = 0;
+              const r = c.getBoundingClientRect();
+              const v = b.getBoundingClientRect();
+              const seen = (Math.min(r.bottom, v.bottom) - Math.max(r.top, v.top)) / (r.height || 1);
+              if (seen < 0.8) c.scrollIntoView({ block: 'center' });
+            });
+            await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+            await page.waitForTimeout(40);
+          };
+          inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
+          if (arg('perf', '')) {
+            // --perf <ms>: what opening the sheet costs the page instead of pictures - the main thread's
+            // counters (CDP Performance.getMetrics) over that window, then over the same window right
+            // after it (must be idle), median of --runs openings. SHOTS_ROOT=<main> gives "before".
+            const ms = Number(arg('perf', 3000));
+            const cdp = await ctx.newCDPSession(page);
+            await cdp.send('Performance.enable');
+            const read = async () => Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]));
+            const KEYS = ['LayoutCount', 'RecalcStyleCount', 'LayoutDuration', 'RecalcStyleDuration', 'ScriptDuration', 'TaskDuration'];
+            const diff = (a, b) => KEYS.map((k) => b[k] - a[k]);
+            const runs = [];
+            for (let i = 0; i < Number(arg('runs', 7)); i++) {
+              inject({ type: 'state', state: team ? TEAM_ROUND_END : ROUND_END });
+              await page.waitForTimeout(600);
+              const a = await read();
+              inject({ type: 'state', state: team ? TEAM_GAME_OVER : GAME_OVER_SWING });
+              inject({ type: 'progress', gainedXp: 120, xp: 5440, level: { level: 14 }, record: { played: 43, won: 17 } });
+              if (process.argv.includes('--perf-scroll')) { // below the fold: scroll to the chart so it draws
+                await page.waitForTimeout(60);
+                await page.evaluate(() => { const c = document.querySelector('#resultBody .scoreChart'); if (c) c.scrollIntoView({ block: 'center' }); });
+              }
+              await page.waitForTimeout(ms);
+              const b = await read();
+              await page.waitForTimeout(ms);
+              const c = await read();
+              runs.push({ open: diff(a, b), after: diff(b, c) });
+            }
+            const median = (list) => list.slice().sort((x, y) => x - y)[Math.floor(list.length / 2)];
+            const row = (part) => KEYS.map((k, j) => {
+              const v = median(runs.map((r) => r[part][j]));
+              return `${k} ${/Duration/.test(k) ? `${(v * 1000).toFixed(1)} ms` : v}`;
+            }).join(', ');
+            const left = await page.evaluate(() => {
+              const svg = document.querySelector('#resultBody .scoreChartSvg');
+              return { running: document.getAnimations().filter((x) => x.playState === 'running' && x.effect && svg && svg.contains(x.effect.target)).length,
+                pops: svg ? svg.querySelectorAll('.leadPop').length : 0, willChange: svg ? [...svg.querySelectorAll('*')].filter((n) => getComputedStyle(n).willChange !== 'auto').length : 0 };
+            });
+            console.log(`perf ${vn} ${sc}: opening, ${ms} ms: ${row('open')}`);
+            console.log(`perf ${vn} ${sc}: the ${ms} ms after: ${row('after')}`);
+            console.log(`perf ${vn} ${sc}: left on the chart: ${left.running} running animation(s), ${left.pops} marker(s), ${left.willChange} will-change`);
+            continue;
+          }
+          for (const t of arg('film', '300,700').split(',').map(Number)) {
+            await open();
+            await page.evaluate((ms) => document.getAnimations().forEach((a) => { a.pause(); a.currentTime = ms; }), t);
+            await shot(`${sc}-${String(t).padStart(4, '0')}`);
+          }
+          await open();
+          await page.waitForTimeout(2400);
+          await shot(`${sc}-end`);
+        } else if (sc === 'gameover-tower') {
           inject({ type: 'joined', playerId: 'p1', playerToken: 't', sessionCode: 'MOCK01' });
           inject({ type: 'state', state: TOWER_STATE });
           inject(TOWER_RESULT);
@@ -1700,6 +1913,8 @@ async function fanOut() {
           if (sc.startsWith('gameover')) inject({ type: 'progress', gainedXp: 120, xp: 5440, level: { level: 14 }, record: { played: 43, won: 17 } });
           if (sc === 'gameover-win') inject({ type: 'badges', earned: [{ name: ME, badges: ['score_500'] }] });
           await page.waitForTimeout(1600); // count-up + winner animation
+          // The chart still draws its end labels then (score-chart.js): shoot it finished.
+          await page.evaluate(() => document.querySelectorAll('.scoreChartSvg').forEach((c) => c.getAnimations({ subtree: true }).forEach((a) => a.finish())));
           // A re-render keeps the body's scroll position: start every result shot at the top.
           await page.evaluate(() => { const b = document.getElementById('resultBody'); if (b) b.scrollTop = 0; });
           await page.waitForTimeout(100);

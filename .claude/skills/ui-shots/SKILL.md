@@ -36,6 +36,11 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
 - **Table scene:** `--scenes table --state <file>` injects a live game. Build
   the state from the real engine (`GameManager` + `fillWithBots` +
   `runBotTurn`, then `publicState('p1')`), not by hand.
+- **Table pets:** `pets` (my cat beside the piles, then stroked by a real pointer; `--pets-stroke` shoots any case/mood stroked;
+  `unlock-pet` with `--signed-in` = the one-time "a cat is waiting" card, then tapped; `--pets-case crowd` = a full
+  table of humans with long names; `--pets-mood turn|rest|asleep` = sitting up, lying, sleeping). Every run prints
+  `pets [...]: N shown, no overlap` or what the pet lies on: it must never cover anything. And
+  `settings-pet` (the pet choice with its preview in "Optionen").
 - **Joker choice dialog:** `joker-choice` ("set or run?"; `--joker layoff` = which end of a run).
 - **Other players' moves in flight:** `opp-moves` (a bot's turn in one state:
   stock draw, a new meld, the discard) and `opp-moves-take` (a pile take
@@ -124,6 +129,18 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   that moment (`1500`: the rain mid-band), `--reduced-motion` gives the still row.
   The script keeps the band until the shot is taken: its timer ends the still one
   after 2.4 s, and a 2x desktop shot took 1.6 s to capture (it came out empty).
+- **Score chart drawing itself:** `gameover-chart` (a match with three lead
+  changes; `gameover-chart-team` the team match) shoots the game-over chart
+  frozen `--film 300,700,...` ms after it was seen, then its end. Each frame is
+  a fresh opening (a round end in between). The plain `gameover*` scenes finish
+  the reveal before their shot. `--perf 3000` measures instead of shooting
+  (CLAUDE.md 2c: effects are measured against main): layout and style passes,
+  script and task time of the main thread (CDP `Performance.getMetrics`) over
+  that many ms from the opening and over the same span after it, the median of
+  `--runs 7` openings; `--perf-scroll` scrolls to a chart below the fold. Run
+  it once more with `SHOTS_ROOT=<main>` for "before", one view per run
+  (`--serial`), never beside another measurement: the times follow the
+  machine's load (the counts hardly do).
 - **Badge unlock cards:** `unlock` (one card on a running table; `--badge <id>`
   another badge, default `wins_10`), `unlock-lobby` (the start screen),
   `unlock-roundend` / `unlock-gameover` (over the result sheets, where the card
@@ -145,6 +162,9 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   (its "Siegesjubel" preview playing, with `--celebration`), `game-settings`
   (the gear at a live engine table: the same sheet with "Dieser Tisch", then
   scrolled to its end; `--state` takes another table), `game-settings-debug`,
+  `table-debug` (the debug view at a live engine table: one shot per page -
+  layout, net, render, game - then folded; prints whether the values run live
+  and what the copy button's toast says),
   `home` (the home dialog at the table, then its forfeit button armed by a
   first tap), `cardback` (the card-back gallery, then a locked back tapped: its
   toast), `tablemark` (the table motif gallery, then a locked motif tapped: its
@@ -210,6 +230,11 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   `--settle 8000` waits that long before it. It never falls at the table.
 - Prints the written PNG paths. Look at them with the Read tool; don't
   just trust that they exist.
+- `--report` writes `<shot>.debug.json` beside every shot: the client's debug
+  report (`window.pikdameDebug.report()`: layout mode and viewport sources,
+  socket counters, `render()` timing, the table state in short, caught JS
+  errors). Read it when a shot puzzles you, before measuring by hand; a
+  `SHOTS_ROOT` checkout older than the hook writes none.
 - `--audit` also checks every shot and writes `<out>/audit.md`: truncated
   text (measured on the text itself), text the screen edge cuts off (outside
   a horizontal scroller), tap targets under 44 px (a hit area

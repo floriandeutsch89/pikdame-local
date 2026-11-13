@@ -69,6 +69,10 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
    (Pausen/Stempel vor dem Rundenblatt abgelehnt, #513). Ton sparsam, die
    meisten spielen stumm (mehr Kartengeräusche abgelehnt, #512) → Charakter
    muss sichtbar wirken. Neue Animationen per Option abschaltbar.
+   **Effekte kosten kaum Akku/Leistung:** nur `transform`/`opacity` animieren,
+   keine Endlos-Schleifen, nichts im Leerlauf oder verstecktem Tab, keine
+   Layout-Lesungen in Schleifen; im PR `main` gegen Branch messen
+   (CDP `Performance.getMetrics`: Layout-, Stil-, Skript-, Taskzeit).
    Einzige Ausnahme: der Boss-Auftritt (< 2 s, vor der ersten Karte, Tipp
    überspringt). Was sonst zum Rundenstart erscheint (Abhebe-Einblendung,
    Rundenspruch), wartet auf ihn. Effekte am Tisch liegen unter jedem Dialog
@@ -132,6 +136,12 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   - `StammtischStore.js`: Gruppen-Tische `ST…`, per Code abgeschottet (auch
     im Public-Mode aktiv). Codes nie in die Partien-Historie (per Name
     abrufbar), dort nur ein Flag. `Emotes.js`: EINZIGE Emote-Whitelist (Vertragstest).
+  - `Pets.js`: EINZIGE Haustier-Liste (ab Stufe, wie `Celebrations.js`); die Wahl liegt am Profil (nur mit Konto),
+    der Sitz trägt nur die ID. `public/pet.js` zeichnet und bestimmt Stimmung und Pose aus dem State (Orte, keine
+    Zähler): in Ruhe und im Schlaf LIEGT das Tier, sonst sitzt es. Gezeichnet wird vorerst NUR das eigene (Tiere an
+    Gegner-Chips waren zu viel), und es liegt NIE auf etwas: rechts neben dem Ablagestapel, sonst unter den Stapeln
+    (Seitenspalte), sonst neben dem Einklapp-Knopf, sonst gar nicht. `ui-shots --scenes pets` misst das.
+    Tipp/Wisch = Streicheln: setzt nur die Klasse `petPetted` (kein Neuzeichnen, kein Layout), nie ein Toast.
   - `BotQuips.js`: EINZIGE Liste der Bot-Spruch-Anlässe; nur die ID geht über
     die Leitung, Texte DE/EN im Client (Vertragstest).
   - `Teams.js`: „2 gegen 2“, Teams über Kreuz per Sitz-Parität; Partie-Akte mit
@@ -157,6 +167,9 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   Tischlicht nach Tageszeit: `table-light.js` schreibt nur `--tod-*`, Farben im
   CSS-Abschnitt TABLE LIGHT aus dem Filz des Themes; Mittag = Bestand, kein Text
   unter seinen Mittags-Tiefstwert (`test/table-light-css.test.js`).
+  Debug-Ansicht: Zahlen, Seiten und Bericht in `debug-view.js` (ohne DOM); `window.pikdameDebug.report()`
+  liefert ihn auch bei ausgeschalteter Ansicht (ui-shots `--report`). Nie Token, Spieler-ID oder
+  Stammtisch-Code im Bericht (Test). Doku `docs/developer/debug-view.md`.
 - `landing/` (pikdame.online), `terraform/` (Hetzner), `docker/`, `k8s/`.
 - `mcp/` — MCP-Server: LLM sitzt als normaler WS-Spieler am Tisch (eigenes
   Paket mit MCP-SDK, nicht im Image). Legale Züge prüft ein Schatten-
@@ -227,7 +240,8 @@ Negativ-Effekt → nicht ausliefern, als „investigated, not shipped“ notiere
    Design-Review nach unseren Regeln: Skill `ui-review`.
    **Sub-Agenten:** Konzept, Design-Review, Auftrags-Prompt und jede
    Design-Arbeit (sichtbare UI, auch die Umsetzung) mit Opus auf maximalem
-   Aufwand; reine Umsetzung ohne Design auf mittlerem (kleine, abgegrenzte
+   Aufwand (**bis 30.11.2026: Fable 5.2 auf hohem Aufwand**, ab 01.12. Zeile
+   entfernen); reine Umsetzung ohne Design auf mittlerem (kleine, abgegrenzte
    Aufträge: Sonnet mittel; Kosten).
 2. **Changelog-Fragment, wenn sich das Spiel ändert** (`public/`, `server.js`,
    `game/`, `models/`, `docker/`, Abhängigkeiten im Image): neue Datei

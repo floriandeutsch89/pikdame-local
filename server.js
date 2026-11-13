@@ -36,6 +36,7 @@ const { createMonitor } = require('./game/Monitor');
 const { createPasskeyService, deviceName } = require('./game/Passkeys');
 const { normalizeEmote, emoteLevel } = require('./game/Emotes');
 const { isCelebration, celebrationLevel } = require('./game/Celebrations');
+const { isPet, petLevel } = require('./game/Pets');
 const { parseGreetingDays, greetingWindow, greetingAtTable } = require('./game/GreetingDays');
 const { holidayStatus } = require('./game/Holidays');
 const { puzzleForDate, publicPuzzle, checkAnswer, checkMeld, perfectStreakOn, XP_FOR_SOLVED, PUZZLE_EPOCH } = require('./game/DailyPuzzle');
@@ -2110,6 +2111,16 @@ async function seatCelebration(name) {
   if (!isCelebration(id)) return 'standard';
   return levelFromXp(p.xp || 0).level >= celebrationLevel(id) ? id : 'standard';
 }
+const PET_LOGIN_ERROR = 'Dein Haustier wählst du mit deinem Konto - bitte zuerst anmelden.';
+/** The profile's table pet while its level still holds it ('none' otherwise). Never throws. */
+async function seatPet(name) {
+  if (PUBLIC_MODE || !name) return 'none';
+  let p = null;
+  try { p = await playerStore.getPlayerByName(name); } catch (err) { logCrash('pet', err, { player: name }); }
+  const id = p && p.pet;
+  if (!isPet(id)) return 'none';
+  return levelFromXp(p.xp || 0).level >= petLevel(id) ? id : 'none';
+}
 const STAMMTISCH_LOGIN_ERROR = 'Für deine Stammtische brauchst du ein Konto - bitte zuerst anmelden.';
 const STAMMTISCH_DB_ERROR = 'Der Stammtisch ist gerade nicht erreichbar - bitte versuch es gleich noch einmal.';
 /** The Stammtisch behind a code ({ code, name }), null without one, undefined when the
@@ -2294,6 +2305,7 @@ wss.on('connection', (ws, req) => {
     // Read before the seat is taken: from here to the reply nothing awaits,
     // so no other message can see a half-joined seat. No name: the seat keeps its own.
     const celebration = sanitizeName(msg.name) ? await seatCelebration(sanitizeName(msg.name)) : null;
+    const pet = sanitizeName(msg.name) ? await seatPet(sanitizeName(msg.name)) : null;
     // A Stammtisch the database cannot read right now: the table plays on without its record.
     const table = targetSession.stammtisch ? await stammtischFor(targetSession.stammtisch) : null;
     let lastWinner = null;
@@ -2352,6 +2364,7 @@ wss.on('connection', (ws, req) => {
     const tookOverSeat = player.id !== playerId;
     playerId = player.id;
     if (celebration) targetSession.game.setPlayerCelebration(playerId, celebration);
+    if (pet) targetSession.game.setPlayerPet(playerId, pet);
     // Only a seat its account verified brings a greeting day to the table (birthdayAtTable).
     if (!targetSession.accountSeats) targetSession.accountSeats = new Map();
     if (accountName) targetSession.accountSeats.set(playerId, accountName.toLowerCase());
@@ -2703,6 +2716,23 @@ wss.on('connection', (ws, req) => {
       const seat = session && playerId ? session.game.players.find((p) => p.id === playerId) : null;
       if (seat && seat.name.toLowerCase() === owner.toLowerCase()) {
         session.game.setPlayerCelebration(playerId, r.celebration);
+        session.game.broadcastState();
+      }
+      await sendProfilesTo(ws, { me: owner });
+      return;
+    }
+    if (msg.type === 'setPet') {
+      // Like the celebration: the whole table sees it, so only the account owning the name sets it.
+      const owner = ACCOUNTS_ENABLED && !PUBLIC_MODE ? await stammtischAccount(msg) : null;
+      if (!owner || owner.toLowerCase() !== String(sanitizeName(msg.name)).toLowerCase()) {
+        return sendError(ws, PET_LOGIN_ERROR);
+      }
+      const r = await playerStore.setPet(owner, msg.pet);
+      if (r.error) return sendError(ws, r.error);
+      // Seated right now: the pet comes to the table at once.
+      const seat = session && playerId ? session.game.players.find((p) => p.id === playerId) : null;
+      if (seat && seat.name.toLowerCase() === owner.toLowerCase()) {
+        session.game.setPlayerPet(playerId, r.pet);
         session.game.broadcastState();
       }
       await sendProfilesTo(ws, { me: owner });
