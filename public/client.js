@@ -549,9 +549,9 @@
       hand_aus_5: { emoji: '🚀', name: L('Blitzhand', 'Lightning hand'), desc: L('5× per „Hand aus“ gewonnen', 'Won 5 rounds out in one'),
         how: L('Mach 5 Runden per „Hand aus“ aus (alles in einem Zug).', 'Go out in one 5 times (whole hand in a single turn).') },
       daily_7: { emoji: '📅', name: L('Eine Woche dabei', 'A week running'), desc: L('7 Tage in Folge gespielt', 'Played 7 days in a row'),
-        how: L('Spiele an 7 Tagen in Folge (Partie oder gelöstes Tagesrätsel). Ein ausgelassener Tag pro Woche wird per Joker-Tag überbrückt.', 'Play on 7 days in a row (a game or a solved daily puzzle). One missed day per week is bridged by a joker day.') },
+        how: L('Spiele an 7 Tagen in Folge (Partie oder gelöstes Tagesrätsel).', 'Play on 7 days in a row (a game or a solved daily puzzle).') },
       daily_30: { emoji: '🗓️', name: L('Ein Monat dabei', 'A month running'), desc: L('30 Tage in Folge gespielt', 'Played 30 days in a row'),
-        how: L('Spiele an 30 Tagen in Folge (Partie oder gelöstes Tagesrätsel). Ein ausgelassener Tag pro Woche wird per Joker-Tag überbrückt.', 'Play on 30 days in a row (a game or a solved daily puzzle). One missed day per week is bridged by a joker day.') },
+        how: L('Spiele an 30 Tagen in Folge (Partie oder gelöstes Tagesrätsel).', 'Play on 30 days in a row (a game or a solved daily puzzle).') },
       // One-offs from the engine facts
       ring_run: { emoji: '🔄', name: L('Ringschluss', 'Full circle'), desc: L('Eine Folge über K-A-2 ausgelegt', 'Melded a run wrapping K-A-2'),
         how: L('Lege eine Folge aus, die über König-Ass-Zwei läuft (z. B. D-K-A-2).', 'Meld a run that wraps King-Ace-Two (e.g. Q-K-A-2).') },
@@ -748,7 +748,7 @@
   let dailyQuests = null;
   let questProgress = {};
   let myProgress = null;      // {xp, level:{level,into,need,total}}
-  let myStreak = null;        // {streak, best, event, graceFree} - from the last 'progress' message
+  let myStreak = null;        // {streak, best, event} - from the last 'progress' message
   let stammtischInfo = null;  // {code, name} when this session is bound to a Stammtisch
   let stammtischSummary = null; // standings / pairwise / series from the server
   let accountProgress = null; // {xp, seasonXp, season, games, wins, rank}
@@ -10382,7 +10382,6 @@
     return {
       streak: (myStreak && myStreak.streak) || (me && me.dailyStreak) || 0,
       best: Math.max((myStreak && myStreak.best) || 0, daily.best || 0),
-      graceFree: myStreak ? !!myStreak.graceFree : !daily.graceAt,
       playedToday,
     };
   }
@@ -10473,8 +10472,8 @@
       `<span class="pgStreakText"><b>${escapeHtml(si.streak === 1 ? L('1 Tag in Folge', '1 day running') : L(`${si.streak} Tage in Folge`, `${si.streak} days running`))}</b>` +
       `<span>${escapeHtml(status)}</span></span></div>` +
       `<p class="pgRules">${escapeHtml(L(
-        `Rekord: ${si.best} ${si.best === 1 ? 'Tag' : 'Tage'} · Joker-Tag ${si.graceFree ? 'frei' : 'diese Woche verbraucht'}. Ein verpasster Tag pro Woche wird überbrückt.`,
-        `Best: ${si.best} ${si.best === 1 ? 'day' : 'days'} · grace day ${si.graceFree ? 'free' : 'used this week'}. One missed day per week is bridged.`
+        `Rekord: ${si.best} ${si.best === 1 ? 'Tag' : 'Tage'}`,
+        `Best: ${si.best} ${si.best === 1 ? 'day' : 'days'}`
       ))}</p>`;
   }
   function openProgressSheet() {
@@ -12183,7 +12182,7 @@
     }
     const st = msg.streak;
     if (st && (st.event === 'extended' || st.event === 'bridged') && st.streak >= 2) {
-      showToast(`🔥 ${L(`${st.streak} Tage in Folge gespielt`, `${st.streak} days in a row`)}${st.event === 'bridged' ? ` ${L('(Joker-Tag genutzt)', '(grace day used)')}` : ''}`);
+      showToast(`🔥 ${L(`${st.streak} Tage in Folge gespielt`, `${st.streak} days in a row`)}`);
     }
     const lvl = msg.level && msg.level.level;
     // The level before this game: XP minus what it brought (works for the
