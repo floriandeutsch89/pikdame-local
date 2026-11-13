@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.145.0] - 2026-11-13
+
+### Changed
+- Der „Joker-Tag“ der Tagesserie wird nicht mehr angezeigt (Fortschritt,
+  Abzeichen, Hinweis nach der Partie). Er wirkt weiter still im Hintergrund:
+  Ein einzelner verpasster Tag lässt die Serie nicht reißen
+
 ## [2.144.0] - 2026-11-13
 
 ### Added
