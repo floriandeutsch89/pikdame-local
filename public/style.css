@@ -1062,19 +1062,42 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   box-shadow: var(--shadow-2), var(--cast-far), inset 0 1px 0 rgba(255,255,255,0.7);
   transition: box-shadow 0.3s ease;
 }
-/* Stapel-Tiefe: versetzte "Karten-Ebenen" unter der obersten Karte -
-   wachsen sichtbar mit der Anzahl der Karten im Stapel. */
-.pile-card.stacked-1 {
+/* Discard pile depth: --pd card edges under the top card (client.js discardDepth), shadows only, so
+   the box never grows. An unused edge hides under the last one. Static: a shadow is never animated. */
+.pile { --pile-edge: 1.25px; } /* one edge's step; per layout, off the caption (test/discard-depth) */
+#discardTopCard {
+  transition: none;
+  --pd: 0;
+  --pile-line: var(--card-border);
+  --pl: calc(var(--pile-edge) * 0.4); /* the line that parts two edges */
+  --d1: calc(min(var(--pd), 1) * var(--pile-edge));
+  --d2: calc(min(var(--pd), 2) * var(--pile-edge));
+  --d3: calc(min(var(--pd), 3) * var(--pile-edge));
+  --d4: calc(min(var(--pd), 4) * var(--pile-edge));
+  --d5: calc(min(var(--pd), 5) * var(--pile-edge));
+  --d6: calc(min(var(--pd), 6) * var(--pile-edge));
+  --d7: calc(min(var(--pd), 7) * var(--pile-edge));
   box-shadow:
-    3px 3px 0 -1px var(--card-bg), 3.5px 3.5px 0 0 var(--card-border),
+    max(0px, var(--d1) - var(--pl)) calc(max(0px, var(--d1) - var(--pl)) * 0.4) 0 0 var(--card-bg),
+    var(--d1) calc(var(--d1) * 0.4) 0 0 var(--pile-line),
+    max(0px, var(--d2) - var(--pl)) calc(max(0px, var(--d2) - var(--pl)) * 0.4) 0 0 var(--card-bg),
+    var(--d2) calc(var(--d2) * 0.4) 0 0 var(--pile-line),
+    max(0px, var(--d3) - var(--pl)) calc(max(0px, var(--d3) - var(--pl)) * 0.4) 0 0 var(--card-bg),
+    var(--d3) calc(var(--d3) * 0.4) 0 0 var(--pile-line),
+    max(0px, var(--d4) - var(--pl)) calc(max(0px, var(--d4) - var(--pl)) * 0.4) 0 0 var(--card-bg),
+    var(--d4) calc(var(--d4) * 0.4) 0 0 var(--pile-line),
+    max(0px, var(--d5) - var(--pl)) calc(max(0px, var(--d5) - var(--pl)) * 0.4) 0 0 var(--card-bg),
+    var(--d5) calc(var(--d5) * 0.4) 0 0 var(--pile-line),
+    max(0px, var(--d6) - var(--pl)) calc(max(0px, var(--d6) - var(--pl)) * 0.4) 0 0 var(--card-bg),
+    var(--d6) calc(var(--d6) * 0.4) 0 0 var(--pile-line),
+    max(0px, var(--d7) - var(--pl)) calc(max(0px, var(--d7) - var(--pl)) * 0.4) 0 0 var(--card-bg),
+    var(--d7) calc(var(--d7) * 0.4) 0 0 var(--pile-line),
     var(--shadow-2), var(--cast-far), inset 0 1px 0 rgba(255,255,255,0.7);
 }
-.pile-card.stacked-2 {
-  box-shadow:
-    3px 3px 0 -1px var(--card-bg), 3.5px 3.5px 0 0 var(--card-border),
-    6px 6px 0 -2px var(--card-bg), 6.5px 6.5px 0 -1px var(--card-border),
-    var(--shadow-2), var(--cast-far), inset 0 1px 0 rgba(255,255,255,0.7);
+@supports (color: color-mix(in srgb, red, blue)) {
+  #discardTopCard { --pile-line: color-mix(in srgb, var(--card-ink) 32%, var(--card-bg)); }
 }
+#discardTopCard.empty { box-shadow: none; }
 .pile-card.red { color: var(--suit-red); }
 .pile-card.black { color: var(--suit-black); }
 .pile-card.joker { color: var(--joker); }
@@ -2708,6 +2731,7 @@ body.raidActive #toastContainer { margin-top: 132px; }
   .card { width: 76px; height: 111px; min-width: 76px; }
   #hand { min-height: 118px; /* card 111 + capped fan dip */ }
   .pile-card { width: 74px; height: 104px; }
+  .pile { --pile-edge: 2px; }
   .card-compact { width: 40px; height: 57px; min-width: 40px; margin-left: -14px; }
   .flyCard { width: 64px; height: 90px; }
   #opponents .opponent { max-width: 230px; }
@@ -2876,7 +2900,7 @@ body.raidActive #toastContainer { margin-top: 132px; }
   }
   #centerPiles .pile-card { width: 40px; height: 56px; }
   .pileLabel { font-size: 0.52rem; }
-  .pile { --pile-cap: 16px; }
+  .pile { --pile-cap: 16px; --pile-edge: 1px; }
   #actionBar { grid-area: action; padding: 4px calc(10px + var(--safe-right)) 4px calc(10px + var(--safe-left)); }
   #handWrapper { grid-area: hand; padding: 6px calc(8px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(8px + var(--safe-left)); }
   .handToolbar { margin: 0 2px 3px; }
