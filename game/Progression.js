@@ -313,7 +313,7 @@ function isWelcomeBack(state, date) {
   return gap !== null && gap >= WELCOME_BACK_DAYS;
 }
 
-/** Is the grace day available on `date`? (for the UI: "Joker-Tag frei") */
+/** Is the grace day available on `date`? (not shown in the UI: the bridge works silently) */
 function streakGraceAvailable(state, date) {
   const s = state || {};
   return !s.graceAt || (dayDiff(s.graceAt, date) || 0) >= STREAK_GRACE_EVERY_DAYS;
