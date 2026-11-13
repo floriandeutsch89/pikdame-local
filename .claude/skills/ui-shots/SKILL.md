@@ -41,6 +41,15 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   table of humans with long names; `--pets-mood turn|rest|asleep` = sitting up, lying, sleeping). Every run prints
   `pets [...]: N shown, no overlap` or what the pet lies on: it must never cover anything. And
   `settings-pet` (the pet choice with its preview in "Optionen").
+- **Turns passing:** `turns` plays a seeded engine game turn by turn (one state
+  per turn, as the server sends it) and shoots an opponent on turn, the turn
+  light frozen `--film` ms into its glide (default 350) and my turn. `--perf
+  10000` measures instead (CLAUDE.md 2c): what `--turns 16` turns cost (one
+  state every `--step 900` ms) and what that many ms of idle after them cost -
+  the main thread's counters plus the paints and raster tasks of a trace, the
+  median of `--runs 3`. Run it again with `SHOTS_ROOT=<main>` for "before", one
+  after the other, never beside another run: the times follow the machine's
+  load, the counts hardly do.
 - **Joker choice dialog:** `joker-choice` ("set or run?"; `--joker layoff` = which end of a run).
 - **Other players' moves in flight:** `opp-moves` (a bot's turn in one state:
   stock draw, a new meld, the discard) and `opp-moves-take` (a pile take

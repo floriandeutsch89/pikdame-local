@@ -27,6 +27,8 @@ window.I18N_STATIC = {
   'Grüne Rahmen an passenden Auslagen': 'Green frames on melds your card fits',
   'Züge der Mitspieler': "Other players' moves",
   'Ihre Karten fliegen über den Tisch': 'Their cards fly across the table',
+  'Zuglicht': 'Turn light',
+  'Ein Lichtschein zeigt, wer am Zug ist': 'A soft light shows whose turn it is',
   'Boss-Effekte': 'Boss effects',
   'Haustier': 'Pet',
   'Liegt bei dir am Tisch': 'Lies beside you at the table',

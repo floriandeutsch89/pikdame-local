@@ -770,7 +770,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   opacity: var(--grain);
   mix-blend-mode: overlay;
   pointer-events: none;
-  z-index: -1;
+  z-index: -2; /* with the mark, below the turn light: a pool gliding above it never re-rasters the grain */
 }
 
 /* ============================ TABLE LIGHT ============================
@@ -5712,7 +5712,7 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
 [data-theme="kitchen"] #table { --mark-ink: rgb(255 252 244 / 0.45); }
 #table[data-mark]::before {
   content: '';
-  position: absolute; z-index: -1; /* under every card, under the grain (#table::after) */
+  position: absolute; z-index: -2; /* under every card, under the grain (#table::after) and the turn light */
   pointer-events: none;
   /* Centred (margin: auto) in the felt from the opponents to the hand bar folded away, its lowest
      place: an open hand covers its foot instead of moving it. 144px = top bar + opponents, 49px = the folded bar. */
@@ -5732,6 +5732,66 @@ body[data-occasion="halloween"] .heroCat .catWhisker { stroke: #c9c2d6; }
 /* More contrast asked for: no picture behind the cards and their captions. */
 @media (prefers-contrast: more), (forced-colors: active) {
   #table[data-mark]::before { content: none; }
+}
+
+/* --- TURN LIGHT: a soft pool of light at the seat on turn --------------------------
+   client.js applyTurnLight() places the pool (public/turn-light.js plans it from the seat's real
+   box) on the felt in front of the seat: never under the top bar, a chip or the hand. A plain
+   translucent colour of the theme's glow, lighter than any felt it falls on: nothing gets darker,
+   and no text over it drops below the table's noon minimum (test/turn-light.test.js). Cheap by
+   design: only transform and opacity change, no blend mode, no filter, nothing loops
+   (docs/developer/table-light.md). --turn-light-a: each theme at 70-90 % of its contrast budget. */
+#table { --turn-light-c: 41 47 74; --turn-light-a: 0.8; }
+[data-theme="night"] #table { --turn-light-c: 22 25 90; --turn-light-a: 0.47; }
+[data-theme="felt"] #table { --turn-light-c: 8 86 0; --turn-light-a: 0.5; }
+[data-theme="love"] #table { --turn-light-c: 108 0 145; --turn-light-a: 0.17; } /* the pink header on the own melds has least to spare */
+[data-theme="bordeaux"] #table { --turn-light-c: 137 31 68; --turn-light-a: 0.41; }
+/* Kitchen: dark ink on light wood, so more light only adds contrast; kept soft all the same. */
+[data-theme="kitchen"] #table { --turn-light-c: 255 250 240; --turn-light-a: 0.7; }
+#turnLight {
+  position: absolute; inset: 0; z-index: -1; /* on the felt: over the mark and the grain (-2), under every card, chip and caption */
+  pointer-events: none;
+  opacity: 0; transition: opacity 0.45s ease;
+}
+#turnLight.on { opacity: var(--turn-light-a); }
+/* The felt between the seats and the hand (client.js sets the box): a plain rectangular clip. */
+#turnLight > span { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; }
+#turnLight i {
+  position: absolute; left: 0; top: 0; width: 200px; height: 200px; /* turn-light.js BASE, scaled to the seat */
+  background: radial-gradient(closest-side, rgb(var(--turn-light-c)) 0%, rgb(var(--turn-light-c)) 22%, rgb(var(--turn-light-c) / 0.72) 48%, rgb(var(--turn-light-c) / 0.3) 74%, rgb(var(--turn-light-c) / 0) 100%);
+}
+/* Only a turn passing on glides (client.js sets .glide): one transform transition, nothing loops. */
+#turnLight i.glide { transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
+/* A mark in the felt already uses the contrast budget, so the light leaves its art out: the
+   mark's own art, box and place (#table[data-mark]::before) as a hole in the layer's mask.
+   Without mask compositing there is no light over a mark. */
+#table[data-mark] #turnLight { display: none; }
+@supports (mask-composite: exclude) or (-webkit-mask-composite: xor) {
+  #table[data-mark] #turnLight {
+    display: block;
+    --turn-mark-w: min(66%, 300px); --turn-mark-h: min(30vh, 270px);
+    --turn-mark-top: calc(var(--safe-top) + 144px); --turn-mark-bottom: calc(var(--safe-bottom) + 49px);
+    -webkit-mask: var(--table-mark, linear-gradient(transparent, transparent)) 50% calc(50% + (var(--turn-mark-top) - var(--turn-mark-bottom)) / 2) / var(--turn-mark-w) var(--turn-mark-h) no-repeat, linear-gradient(#000, #000);
+    -webkit-mask-composite: xor;
+    mask: var(--table-mark, linear-gradient(transparent, transparent)) 50% calc(50% + (var(--turn-mark-top) - var(--turn-mark-bottom)) / 2) / var(--turn-mark-w) var(--turn-mark-h) no-repeat, linear-gradient(#000, #000);
+    mask-composite: exclude;
+  }
+}
+/* Landscape and desktop: the layer takes the mark's own grid area, so both boxes stay the same. */
+@media (orientation: landscape) and (max-height: 540px) {
+  #turnLight { grid-row: 3 / -1; grid-column: 1 / -1; }
+  #table[data-mark] #turnLight { --turn-mark-top: 0px; --turn-mark-w: min(40%, 300px); --turn-mark-h: min(34vh, 140px); }
+}
+@media (min-width: 1100px) and (min-height: 541px) {
+  #turnLight { grid-row: 3 / -1; grid-column: 1 / -1; }
+  #table[data-mark] #turnLight { --turn-mark-top: 0px; --turn-mark-bottom: calc(var(--safe-bottom) + 59px); --turn-mark-w: min(40%, 420px); --turn-mark-h: min(40vh, 320px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #turnLight, #turnLight i.glide { transition: none; }
+}
+/* More contrast asked for: the felt stays plain, like the marks and the hour's light. */
+@media (prefers-contrast: more), (forced-colors: active) {
+  #turnLight { display: none !important; }
 }
 /* The occasion's hat, tossed onto the corner of the queen's announcement (client.js
    showRaidWarning); its brim stays above the title. */

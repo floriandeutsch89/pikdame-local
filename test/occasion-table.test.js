@@ -55,7 +55,7 @@ test('occasion watermark: a mask behind everything, keyed on the table\'s mark, 
   assert.ok(rule, 'the watermark is #table::before, only while the table names a mark');
   const body = rule[1];
   assert.match(body, /pointer-events:\s*none/, 'no tap lands on it');
-  assert.match(body, /z-index:\s*-1/, 'under every card, chip and caption');
+  assert.match(body, /z-index:\s*-2/, 'under every card, chip and caption, under the turn light (-1)');
   assert.match(body, /position:\s*absolute/, 'takes no space of its own');
   // A mark without art (a new id before its drawing) gets a fully transparent mask: nothing is drawn.
   for (const prop of ['-webkit-mask', 'mask']) {

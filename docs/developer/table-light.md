@@ -96,6 +96,91 @@ lights the top in the morning.
 - **Screenshots depend on the hour.** The `ui-shots` skill pins the light to
   noon; `--light morning|evening|night|HH:MM|now` shoots another time.
 
+## Turn light
+
+A soft pool of light lies on the felt in front of the seat on turn and glides
+there when the turn passes: under an opponent's chip (or the boss field), above
+the own hand. "Optionen" → "Spielhilfen" → "Zuglicht" switches it off
+(`pikdame_turn_light`, per device, default on).
+
+- `public/turn-light.js` is pure: from the boxes of the table, the opponents'
+  row, the hand and the seat on turn it plans the **band** (the felt from below
+  the seats to the hand's upper edge) and the **pool** (half an ellipse hanging
+  from the band's upper edge under the chip, or rising from its lower edge for
+  me). Nothing is hard-coded per layout; portrait, landscape and desktop only
+  differ in the boxes.
+- `client.js` (`applyTurnLight`) reads those boxes once per frame after a render
+  or a resize (`ResizeObserver` on the table, the opponents' row and the hand),
+  and writes styles only when the geometry changed. The seat follows
+  `shownTurnId()`, like the ring on the chip: while another player's cards are
+  still in flight the light stays with them. Only a turn passing on glides; the
+  first light of a round and a layout that moved just appear, and so does
+  everything with `prefers-reduced-motion`.
+- `style.css`, section TURN LIGHT: `#turnLight` (first child of `#table`,
+  `z-index: -1`: over the mark and the grain, which sit at `-2`, under all
+  content) holds the band
+  (a plain `overflow: hidden` box) and in it the pool, a 200 px box with one
+  radial gradient that a `transform` moves and scales. The layer's `opacity` is
+  its strength (`--turn-light-a`), the colour is `--turn-light-c`, both per
+  theme.
+
+**Why the light stays off the top bar, the chips and the hand.** The text with
+the least contrast on the table sits on the hand panel (the sort toggle: that
+surface is the table's noon minimum), and the chip on turn already carries the
+accent tint: on the gold themes its muted text has next to nothing to spare.
+The band keeps all of them out by a rectangle, so the pool needs no holes and
+no clip path.
+
+**The contract** (`test/turn-light.test.js`), from the stylesheet with the model
+of the section above, for every theme at every quarter hour:
+
+- **Only more light.** On every surface the band holds (felt, the rest of the
+  top glow, the piles' spot, the lamp, the vignette, the kitchen's window band)
+  the lit colour is never darker than the unlit one, at any point of the pool's
+  fall-off. That fixes the colour: a plain translucent veil darkens whatever is
+  lighter than itself, so each theme's light is its own glow pushed lighter and
+  more saturated.
+- **No text below the table's noon minimum** with the pool at full strength
+  under it: main, muted and accent text, bare and under the meld groups' glass,
+  the own group's stronger glass and the piles' pool. And text that reaches AA
+  (4.5:1) on today's table keeps it in the light: main and muted text
+  everywhere, accent text where it really sits (the header of the own melds,
+  the hint line above the hand). Each theme sits at 70 to 90 % of what that
+  allows, so on the dark themes the light is a quiet glow by design (quietest
+  on Herzdame, whose pink header has the least to spare); the kitchen has dark
+  ink on light wood, where more light only adds contrast. A saturated colour buys the most visible step for the least
+  luminance, which is why each light is its theme's glow with more chroma.
+- **It reads**: a step of at least 4.5 (CIEDE2000) on the felt, by day and at
+  night.
+- **A mark keeps its budget.** The marks already use ~85 % of the same budget,
+  so the light leaves the mark's art out: the layer's mask is the mark's own art
+  in the mark's own box, cut out with `mask-composite`. The test compares that
+  box with `#table[data-mark]::before` in all three layouts (change both rules
+  together); the layer takes the mark's grid area in landscape and on desktop so
+  both resolve against the same box. Without mask compositing there is no light
+  over a mark.
+- **Gone with `prefers-contrast: more`**, like the marks and the hour's light.
+
+**Cost.** Only `transform` (the pool) and `opacity` (the layer) ever change;
+there is no animation that loops, no blend mode, no filter, no clip path, no
+`will-change` and no timer. Idle and in a hidden tab nothing runs. Measure it
+against `main` with the `ui-shots` scene `turns --perf 10000` (16 turns, then
+10 s idle): layout, style, script and task time stay where they were; the one
+number that rises is raster tasks, by about 6 %, because the browser lifts the
+pool onto its own compositor layer for the 0.7 s of a glide and merges it back.
+Two traps found by measuring:
+
+- **The grain.** With the pool painted *under* the grain (`#table::after`, a
+  full-table `mix-blend-mode: overlay`), every glide split the grain off into a
+  blended layer of its own and rastered it again: +15 % raster tasks. The grain
+  and the mark sit at `z-index: -2` now, the light at `-1` above them.
+- **The band's clip.** Without the band's `overflow: hidden` the browser cannot
+  bound where the moving pool may be and splits off far more of the table.
+
+**Boss floors and "2 gegen 2".** The boss field replaces the chips in the same
+row, so the light hangs under it like under a chip; team chips are chips. No
+special case in either.
+
 ## Marks in the felt
 
 On an occasion the felt carries a large, faint picture behind every card:

@@ -167,6 +167,12 @@ passenden Skill festhalten, im selben PR, solange er offen ist.
   Tischlicht nach Tageszeit: `table-light.js` schreibt nur `--tod-*`, Farben im
   CSS-Abschnitt TABLE LIGHT aus dem Filz des Themes; Mittag = Bestand, kein Text
   unter seinen Mittags-Tiefstwert (`test/table-light-css.test.js`).
+  Zuglicht: `turn-light.js` plant den Lichtschein aus den echten Sitz-Boxen (auf dem Filz vor dem Platz
+  am Zug, nie unter Kopfzeile, Chips oder Hand); Farbe und Stärke je Theme im CSS-Abschnitt TURN LIGHT,
+  am Kontrastbudget gemessen (`test/turn-light.test.js`). Ein Tischmotiv spart er aus: die Maske
+  wiederholt die Box von `#table[data-mark]::before` - beide Regeln gemeinsam ändern. Er liegt ÜBER
+  Maserung und Motiv (beide `z-index: -2`): darunter rasterte jedes Gleiten die Maserung neu (gemessen
+  mit `ui-shots --scenes turns --perf`). Was unter Tischinhalt gleitet, vor dem PR so messen.
   Debug-Ansicht: Zahlen, Seiten und Bericht in `debug-view.js` (ohne DOM); `window.pikdameDebug.report()`
   liefert ihn auch bei ausgeschalteter Ansicht (ui-shots `--report`). Nie Token, Spieler-ID oder
   Stammtisch-Code im Bericht (Test). Doku `docs/developer/debug-view.md`.
