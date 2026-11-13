@@ -1,8 +1,9 @@
 // public/table-moves.js
 // What another player just did at the table, read from two states: which pile,
 // meld or the stock gained or lost which card. A bot turn arrives as ONE state,
-// so moves come from locations, never from hand counts. Loaded before
-// client.js (which flies them); the tests require() it.
+// so moves come from locations, never from hand counts. The same reading names
+// my own cards laid from the hand (own). Loaded before client.js (which flies
+// them); the tests require() it.
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -33,7 +34,7 @@
       order.push(m.id);
       (m.slots || []).forEach((s, slot) => {
         const c = s && (s.real || s.joker);
-        if (c && c.id != null) table.set(c.id, { meld: m.id, owner: m.ownerId, slot });
+        if (c && c.id != null) table.set(c.id, { meld: m.id, owner: m.ownerId, slot, joker: !s.real });
       });
     }
     const me = st.players.find((p) => p && p.id === meId);
@@ -125,6 +126,40 @@
       if (cards.length) moves.push({ kind: 'meld', who, meld, cards });
     }
     if (card) moves.push({ kind: 'discard', who, card, back: !turnDone });
+    return moves;
+  }
+
+  /** My own cards between two facts, from where they lie: hand -> my melds ('meld', as in diff)
+   *  and a joker my card swapped out of the game ('out': its old meld and slot). [] when unsure. */
+  function own(prev, now, meId) {
+    if (!prev || !now || !meId || prev.round !== now.round || prev.phase !== 'playing' || prev.cur !== meId) return [];
+    const over = OVER.has(now.phase);
+    if (now.phase !== 'playing' && !over) return [];
+    const dTurn = now.turn - prev.turn;
+    if (over ? dTurn !== 0 : !((dTurn === 0 && now.cur === meId) || dTurn === 1)) return [];
+    const laid = [];
+    for (const [id, t] of now.table) {
+      if (prev.table.has(id)) continue;
+      // Only what I held: a card from anywhere else has no place to fly from.
+      if (t.owner !== meId || !prev.mine.has(id) || now.mine.has(id)) return [];
+      laid.push(id);
+    }
+    if (!laid.length) return [];
+    const moves = [];
+    for (const meld of now.order) {
+      const cards = laid
+        .filter((id) => now.table.get(id).meld === meld)
+        .map((id) => ({ id, slot: now.table.get(id).slot }))
+        .sort((a, b) => a.slot - b.slot);
+      if (cards.length) moves.push({ kind: 'meld', who: meId, meld, cards });
+    }
+    for (const [id, t] of prev.table) {
+      if (now.table.has(id)) continue;
+      // A card leaves the table for good only as my joker, where my card now lies (an undo: unsure).
+      const into = moves.find((m) => m.meld === t.meld);
+      if (!t.joker || t.owner !== meId || now.mine.has(id) || !into) return [];
+      moves.push({ kind: 'out', who: meId, meld: t.meld, slot: t.slot, card: { id }, by: into.cards.find((c) => c.slot === t.slot) || into.cards[0] });
+    }
     return moves;
   }
 
@@ -224,5 +259,5 @@
     return leaving ? { from: at(cut), to, cut } : { from, to: at(cut), cut };
   }
 
-  return { FACE_DOWN, BUDGET_MS, TAKE_SHOWN, facts, diff, changed, plan, pileMoves, clearFlight };
+  return { FACE_DOWN, BUDGET_MS, TAKE_SHOWN, facts, diff, own, changed, plan, pileMoves, clearFlight };
 }));

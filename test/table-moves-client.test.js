@@ -1,6 +1,7 @@
 // Other players' moves fly at the table (client.js + public/table-moves.js): ghosts
 // between the stock, the pile, the player's chip and their melds, a new meld card hidden
 // until its ghost lands, the piles never covered, quiet sounds, never queued behind the next state.
+// My own meld cards glide the same way from their place in the hand into my melds.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -20,7 +21,7 @@ const LANDSCAPE = { chip: [480, 60, 170, 52], avatar: [486, 66, 40, 40], stock: 
 const DESKTOP = { chip: [480, 72, 230, 68], avatar: [488, 80, 40, 40], stock: [1310, 165, 90, 125], discard: [1310, 330, 90, 125], hand: [240, 740, 960, 150], handCard: [1100, 750, 80, 112] };
 
 /** The real client in jsdom with layout, Web Animations and frames stubbed; the clock is the test's. */
-function boot({ reduced = false, animate = true, stored = {}, layout = PORTRAIT } = {}) {
+function boot({ reduced = false, animate = true, stored = {}, layout = PORTRAIT, mouse = false } = {}) {
   const errors = [];
   // jsdom has no styles of pseudo-elements (the card back's medallion): that alone is no error.
   const virtualConsole = new VirtualConsole();
@@ -29,7 +30,8 @@ function boot({ reduced = false, animate = true, stored = {}, layout = PORTRAIT 
   const { window } = dom;
   const clock = { t: 1000 };
   window.performance.now = () => clock.t;
-  window.matchMedia = (q) => ({ matches: reduced && /prefers-reduced-motion: reduce/.test(q), addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
+  // mouse: a fine pointer, so hand cards can be dragged onto a meld.
+  window.matchMedia = (q) => ({ matches: (reduced && /prefers-reduced-motion: reduce/.test(q)) || (mouse && /pointer: fine/.test(q)), addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
   const vibes = [];
   window.navigator.vibrate = (pattern) => { vibes.push(pattern); return true; };
   window.scrollTo = () => {};
@@ -38,7 +40,7 @@ function boot({ reduced = false, animate = true, stored = {}, layout = PORTRAIT 
   window.Element.prototype.getBoundingClientRect = function rect() {
     const pile = this.closest('.pile');
     let box = [300, 400, 40, 56]; // a meld card
-    if (this.id === 'melds') box = [0, 0, 2000, 2000];
+    if (this.id === 'melds') box = layout.melds || [0, 0, 2000, 2000];
     else if (this.id === 'hand') box = layout.hand;
     else if (this.closest('#hand')) box = layout.handCard;
     else if (this.classList.contains('opponent')) box = layout.chip;
@@ -753,6 +755,309 @@ test('the choice survives a reload: off stays off, on flies again', async (t) =>
   assert.deepEqual([...off.errors, ...on.errors], []);
 });
 
+// --- My own melds fly ----------------------------------------------------------------------
+const MINE = [...SEVENS, 'S7-1', 'C9-0', 'SK-0'];
+/** My turn in its meld phase: my hand, the table's melds ('J…' = a joker standing in for the 7 of spades). */
+function myTurn({ hand = MINE, melds = [], ...o } = {}) {
+  const s = st({ cur: 'p1', phase: 'meld', melds: melds.map(([owner, ids]) => [owner, ids.filter((id) => !id.startsWith('J'))]), ...o });
+  melds.forEach(([, ids], i) => {
+    s.tableMelds[i].slots = ids.map((id) => (id.startsWith('J') ? { joker: { id, isJoker: true }, representsRank: '7', representsSuit: 'S' } : { real: C(id) }));
+  });
+  Object.assign(s.players[0], { hand: hand.map(C), handCount: hand.length });
+  return s;
+}
+const laidSevens = (o = {}) => myTurn({ hand: ['S7-1', 'C9-0', 'SK-0'], melds: [['p1', SEVENS]], ...o });
+const ownGhosts = (doc) => [...doc.querySelectorAll('body > .ownFly')];
+const hidden = (c) => c.anims.filter((a) => a.frames.every((f) => f.opacity === 0) && !a.cancelled);
+const handIds = (doc) => [...doc.querySelectorAll('#hand .card')].map((n) => n.dataset.cardId).sort();
+const ownBox = (c) => c.doc.getElementById('ownMovesCheckbox');
+const toggleOwn = (c, on) => {
+  ownBox(c).checked = on;
+  ownBox(c).dispatchEvent(new c.window.Event('change', { bubbles: true }));
+};
+/** A table where I just laid the three sevens: the state before, then the one with them in my meld. */
+/** A booted client at the table (joined), closed with the test. */
+async function seated(t, opts) {
+  const c = boot(opts);
+  t.after(() => c.window.close());
+  await ready();
+  c.join();
+  return c;
+}
+async function laid(t, opts) {
+  const c = await seated(t, opts);
+  c.state(myTurn());
+  c.clock.t += 50;
+  c.state(laidSevens());
+  return c;
+}
+
+test('my meld: the cards glide from their place in the hand into my meld, one after another', async (t) => {
+  const c = await seated(t);
+  c.state(myTurn());
+  assert.deepEqual(handIds(c.doc), MINE.slice().sort());
+  c.clock.t += 50;
+  c.state(laidSevens());
+  // The state shows at once: the hand closed up, the meld is on the table, I may go on.
+  assert.deepEqual(handIds(c.doc), ['C9-0', 'S7-1', 'SK-0']);
+  assert.ok(SEVENS.every((id) => meldCard(c.doc, id)), 'the meld is there with the state');
+  const gs = ownGhosts(c.doc);
+  assert.strictEqual(gs.length, 3, 'one ghost a card');
+  assert.deepEqual(gs.map((g) => g.querySelector('.corner').textContent), ['7♥', '7♦', '7♣']);
+  assert.ok(gs.every((g) => g.classList.contains('card-compact') && g.classList.contains('oppFly') && !g.dataset.cardId), 'a copy of the meld card, without its id');
+  assert.ok(gs.every((g) => g.getAttribute('aria-hidden') === 'true'), 'decoration');
+  const fl = gs.map((g) => flightOf(c, g));
+  // From the hand card's box to the slot, opaque all the way: it never fades, it was in my hand.
+  const [hx, hy] = PORTRAIT.handCard;
+  for (const a of fl) {
+    assert.match(a.frames[0].transform, new RegExp(`^translate\\(${hx}px, ${hy}px\\)`), 'it leaves where the hand card lay');
+    assert.match(a.frames.at(-1).transform, /^translate\(300px, 400px\) rotate\(0deg\) scale\(1\)$/, 'and lands on its slot, upright, at the slot\'s size');
+    assert.ok(a.frames.every((f) => f.opacity === 1));
+    assert.strictEqual(a.opts.fill, 'both', 'waiting for its turn it stays where the hand card was');
+    assert.ok(a.frames.every((f) => Object.keys(f).every((k) => k === 'transform' || k === 'opacity')), 'only transform and opacity move');
+  }
+  assert.strictEqual(fl[0].opts.delay, 0, 'the first leaves at once');
+  assert.ok(fl[1].opts.delay > 0 && fl[2].opts.delay > fl[1].opts.delay && fl[2].opts.delay - fl[1].opts.delay <= 60, 'a short stagger');
+  assert.ok(fl.every((a) => endOf(a) <= 450), 'all landed well within half a second');
+  // The real cards wait invisible until their ghost lands.
+  for (const [i, id] of SEVENS.entries()) {
+    const hold = holdsOn(c, meldCard(c.doc, id));
+    assert.strictEqual(hold.length, 1, `${id} is hidden while it flies`);
+    assert.ok(Math.abs(hold[0].opts.duration - endOf(fl[i]) - SLACK) < 1e-6);
+  }
+  const hold = holdsOn(c, meldCard(c.doc, 'H7-0'))[0];
+  fl[0].onfinish();
+  assert.ok(hold.cancelled && !gs[0].isConnected, 'it lands: the ghost goes, the card shows in the same frame');
+  assert.deepEqual(ghosts(c.doc).filter((g) => !g.classList.contains('ownFly')), [], 'nothing else flies for my move');
+  // Landed, the flight is over on its own: no ghost left, nothing hidden.
+  await wait(600);
+  assert.deepEqual(ownGhosts(c.doc), []);
+  assert.deepEqual(hidden(c), []);
+  assert.deepEqual(c.errors, []);
+});
+
+test('my lay-off flies; a swapped-out joker stays on its slot and fades as my card arrives', async (t) => {
+  const c = await laid(t);
+  await wait(600);
+  // A lay-off: the fourth seven joins the meld.
+  c.clock.t += 2000;
+  c.state(myTurn({ hand: ['C9-0', 'SK-0'], melds: [['p1', [...SEVENS, 'S7-1']]] }));
+  let gs = ownGhosts(c.doc);
+  assert.deepEqual(gs.map((g) => g.querySelector('.corner').textContent), ['7♠'], 'only the new card');
+  assert.strictEqual(holdsOn(c, meldCard(c.doc, 'S7-1')).length, 1);
+  assert.deepEqual(holdsOn(c, meldCard(c.doc, 'H7-0')), [], 'the cards that lay there are never hidden');
+  // A joker swap: the joker never comes back to the hand, it leaves the game.
+  const d = await seated(t);
+  d.state(myTurn({ hand: ['S7-0', 'C9-0', 'SK-0'], melds: [['p1', ['H7-0', 'D7-0', 'J1']]] }));
+  d.clock.t += 50;
+  d.state(myTurn({ hand: ['C9-0', 'SK-0'], melds: [['p1', ['H7-0', 'D7-0', 'S7-0']]] }));
+  gs = ownGhosts(d.doc);
+  assert.strictEqual(gs.length, 2, 'my card and the joker it replaces');
+  const [card, joker] = gs.map((g) => flightOf(d, g));
+  assert.ok(gs[1].classList.contains('joker') && !gs[0].classList.contains('joker'));
+  assert.strictEqual(joker.frames[0].opacity, 1, 'the joker lies on its slot');
+  assert.strictEqual(joker.frames.at(-1).opacity, 0, 'and is gone when my card lands');
+  assert.ok(joker.frames.slice(0, 2).every((f) => f.transform === joker.frames[0].transform) && joker.frames[1].offset >= 0.6, 'it stays put until the card is close');
+  assert.strictEqual(endOf(joker), endOf(card), 'one moment');
+  assert.deepEqual(handIds(d.doc), ['C9-0', 'SK-0'], 'no joker in my hand');
+  assert.strictEqual(holdsOn(d, meldCard(d.doc, 'S7-0')).length, 1);
+  assert.deepEqual([...c.errors, ...d.errors], []);
+});
+
+test('my flight ends at once with the next move: my discard, an undo, a rejoin - never a ghost or a hidden card left', async (t) => {
+  const over = (c, why) => {
+    assert.deepEqual(ownGhosts(c.doc), [], `${why}: no ghost`);
+    assert.deepEqual(hidden(c), [], `${why}: no card hidden`);
+    assert.ok(c.anims.filter((a) => a.el.classList.contains('ownFly')).every((a) => a.cancelled), `${why}: every flight cancelled`);
+    assert.deepEqual(c.errors, []);
+  };
+  // I discard right away: the turn passes, the table shows the state.
+  let c = await laid(t);
+  assert.strictEqual(ownGhosts(c.doc).length, 3);
+  c.clock.t += 120;
+  c.state(laidSevens({ hand: ['C9-0', 'SK-0'], cur: 'b1', phase: 'draw', turn: 9, pile: ['S7-1', 'D4-0', 'C3-1'] }));
+  over(c, 'discard');
+  assert.ok(SEVENS.every((id) => meldCard(c.doc, id)));
+  // "Rückgängig": the cards are back in my hand.
+  c = await laid(t);
+  c.clock.t += 120;
+  c.state(myTurn());
+  over(c, 'undo');
+  assert.deepEqual(handIds(c.doc), MINE.slice().sort());
+  // A reconnect: whatever happened meanwhile is not replayed.
+  c = await laid(t);
+  c.clock.t += 120;
+  c.join();
+  over(c, 'rejoin');
+  c.state(laidSevens());
+  over(c, 'the state after a rejoin is a baseline');
+  // The page goes to the background.
+  c = await laid(t);
+  Object.defineProperty(c.doc, 'hidden', { configurable: true, get: () => true });
+  c.doc.dispatchEvent(new c.window.Event('visibilitychange'));
+  over(c, 'hidden');
+  // The round ends in the same state (a whole turn played for me): the sheet covers the table.
+  c = await seated(t);
+  c.state(myTurn({ hand: [...SEVENS, 'C9-0'] }));
+  c.clock.t += 50;
+  const mk = (score, win) => ({ roundScore: score, breakdown: { isWinner: !!win, multiplier: 1 } });
+  c.state({
+    ...myTurn({ hand: [], melds: [['p1', SEVENS]], pile: ['X1-0', 'D4-0'], faceDownTop: true }),
+    phase: 'roundEnd', lastRoundWinnerId: 'p1',
+    lastRoundResult: { p1: mk(120, true), b1: mk(-60), b2: mk(-20) },
+    lastRoundStats: [{ id: 'p1', name: 'Flo', laidOutCount: 3, handCount: 0 }, { id: 'b1', name: 'Klaus', laidOutCount: 0, handCount: 12 }, { id: 'b2', name: 'Horst', laidOutCount: 0, handCount: 9 }],
+  });
+  assert.ok(!c.doc.getElementById('resultOverlay').classList.contains('hidden'), 'the result sheet is open');
+  over(c, 'round end');
+});
+
+test('my flight goes on: a state that moves nothing, a re-render, and my next meld joins it', async (t) => {
+  const c = await laid(t);
+  const first = ownGhosts(c.doc);
+  // A vote or an emote: a new state, the same table.
+  c.clock.t += 60;
+  c.state(laidSevens({ log: [{ text: 'x' }] }));
+  assert.deepEqual(ownGhosts(c.doc), first, 'the same ghosts, no second set');
+  assert.ok(first.every((g) => !flightOf(c, g).cancelled));
+  for (const id of SEVENS) assert.strictEqual(holdsOn(c, meldCard(c.doc, id)).length, 1, `${id}: rebuilt, hidden again until it lands`);
+  // The next card right behind: its own flight, the first three still in the air.
+  c.clock.t += 60;
+  c.state(myTurn({ hand: ['C9-0', 'SK-0'], melds: [['p1', [...SEVENS, 'S7-1']]] }));
+  const all = ownGhosts(c.doc);
+  assert.strictEqual(all.length, 4);
+  assert.ok(first.every((g) => g.isConnected && !flightOf(c, g).cancelled), 'the first flight is not cut');
+  const late = flightOf(c, all[3]);
+  assert.ok(late.opts.delay >= 0 && late.opts.duration >= 250, 'the new card takes its full time, from now');
+  assert.deepEqual(c.errors, []);
+});
+
+test('my cards never fly: reduced motion, a hidden page, an open sheet, no Web Animations, dropped by hand, another seat', async (t) => {
+  const still = (c, why) => {
+    assert.deepEqual(ownGhosts(c.doc), [], `${why}: no ghost`);
+    assert.deepEqual(hidden(c), [], `${why}: nothing hidden`);
+    assert.ok(SEVENS.every((id) => meldCard(c.doc, id)), `${why}: the meld is there`);
+    assert.deepEqual(c.errors, []);
+  };
+  let c = await laid(t, { reduced: true });
+  still(c, 'reduced motion');
+  assert.deepEqual(c.anims, [], 'reduced motion: not one animation');
+  c = await laid(t, { animate: false });
+  still(c, 'no Web Animations');
+  // A page in the background.
+  c = await seated(t);
+  c.state(myTurn());
+  Object.defineProperty(c.doc, 'hidden', { configurable: true, get: () => true });
+  c.state(laidSevens());
+  still(c, 'hidden page');
+  // A sheet over the table.
+  c = await seated(t);
+  c.state(myTurn());
+  c.doc.getElementById('settingsOverlay').classList.remove('hidden');
+  c.state(laidSevens());
+  still(c, 'open sheet');
+  // Cards I dragged onto my meld with the mouse are there already: no second way from the hand.
+  c = await seated(t, { mouse: true });
+  c.state(myTurn({ hand: ['S7-1', 'C9-0', 'SK-0'], melds: [['p1', SEVENS]] }));
+  const card = c.doc.querySelector('#hand .card[data-card-id="S7-1"]');
+  card.dispatchEvent(new c.window.Event('dragstart', { bubbles: true }));
+  c.doc.querySelector('#melds .meldGroup').dispatchEvent(new c.window.Event('drop', { bubbles: true }));
+  c.clock.t += 50;
+  c.state(myTurn({ hand: ['C9-0', 'SK-0'], melds: [['p1', [...SEVENS, 'S7-1']]] }));
+  assert.deepEqual(ownGhosts(c.doc), [], 'dropped: no ghost');
+  assert.deepEqual(hidden(c), []);
+  // ... and the next card, laid by a tap, flies again.
+  c.doc.querySelector('#hand .card[data-card-id="C9-0"]').click();
+  c.doc.querySelector('#melds .card').click();
+  c.clock.t += 50;
+  c.state(myTurn({ hand: ['SK-0'], melds: [['p1', [...SEVENS, 'S7-1', 'C9-0']]] }));
+  assert.strictEqual(ownGhosts(c.doc).length, 1, 'tapped: it flies');
+  // Another player's meld is theirs to fly (from their chip), never from my hand.
+  c = await seated(t);
+  c.state(before());
+  c.clock.t += 50;
+  c.state(after());
+  assert.deepEqual(ownGhosts(c.doc), []);
+  assert.strictEqual(ghosts(c.doc).length, 5);
+  assert.deepEqual(c.errors, []);
+});
+
+test('a landing row cut by the meld area: the ghost melts into the cut card; hardly in view: no flight', async (t) => {
+  // The meld card's box is [300, 400, 40, 56]: the area ends 26 px above the card's bottom edge.
+  const c = await laid(t, { layout: { ...PORTRAIT, melds: [0, 0, 393, 430] } });
+  const gs = ownGhosts(c.doc);
+  assert.strictEqual(gs.length, 3);
+  for (const [i, g] of gs.entries()) {
+    const a = flightOf(c, g);
+    // Only transform and opacity ever move: the ghost is never clipped.
+    assert.ok(a.frames.every((f) => Object.keys(f).every((k) => ['transform', 'opacity', 'offset'].includes(k))));
+    assert.deepEqual(a.frames.map((f) => f.opacity), [1, 1, 0], 'whole on its way, gone when it arrives');
+    assert.ok(a.frames[1].offset >= 0.7 && !('transform' in a.frames[1]), 'only close to the card it fades');
+    // The cut card fades in under it, in the same time: never a card at both places.
+    const shows = c.anims.filter((x) => x.el === meldCard(c.doc, SEVENS[i]) && !x.cancelled);
+    assert.strictEqual(shows.length, 1);
+    assert.deepEqual(shows[0].frames.map((f) => f.opacity), [0, 0, 1]);
+    assert.strictEqual(shows[0].frames[1].offset, a.frames[1].offset);
+    assert.deepEqual([shows[0].opts.delay, shows[0].opts.duration, shows[0].opts.easing], [a.opts.delay, a.opts.duration, a.opts.easing]);
+    assert.strictEqual(shows[0].opts.fill, 'backwards', 'hidden while its ghost waits, itself afterwards');
+  }
+  // Scrolled above the area's top edge: the same.
+  const up = await laid(t, { layout: { ...PORTRAIT, melds: [0, 420, 393, 300] } });
+  assert.deepEqual(flightOf(up, ownGhosts(up.doc)[0]).frames.map((f) => f.opacity), [1, 1, 0]);
+  // Only a sliver of it in view, or none: the card simply is there.
+  for (const melds of [[0, 0, 393, 404], [0, 0, 393, 300], [0, 600, 393, 100]]) {
+    const out = await laid(t, { layout: { ...PORTRAIT, melds } });
+    assert.deepEqual(ownGhosts(out.doc), [], `${melds}: no ghost`);
+    assert.deepEqual(out.anims.filter((x) => !x.cancelled), [], `${melds}: nothing hidden, nothing animated`);
+    assert.deepEqual(out.errors, []);
+  }
+  assert.deepEqual([...c.errors, ...up.errors], []);
+});
+
+test('"Eigene Auslage" in "Optionen": on by default, off shows my cards at once, the choice survives a reload', async (t) => {
+  const c = boot();
+  t.after(() => c.window.close());
+  await ready();
+  assert.strictEqual(ownBox(c).checked, true, 'new players see their cards glide');
+  assert.strictEqual(c.window.localStorage.getItem('pikdame_own_moves'), null, 'nothing stored until a choice');
+  const row = ownBox(c).closest('label.prefRow');
+  assert.ok(row && row.closest('.prefGroup').querySelector('.prefGroupTitle').textContent === 'Spielhilfen');
+  assert.strictEqual(row.previousElementSibling.getAttribute('for'), 'oppMovesCheckbox', 'right below the others\' moves');
+  assert.strictEqual(row.querySelector('.prefLabel').textContent, 'Eigene Auslage');
+  assert.strictEqual(c.window.I18N_STATIC['Eigene Auslage'], 'Your own melds');
+  assert.ok(c.window.I18N_STATIC[row.querySelector('.prefSub').textContent], 'the sub line is translated too');
+  // Off mid-flight: every card lands at once; then nothing flies, nothing is hidden.
+  c.join();
+  c.state(myTurn());
+  c.clock.t += 50;
+  c.state(laidSevens());
+  const flights = ownGhosts(c.doc).map((g) => flightOf(c, g));
+  assert.strictEqual(flights.length, 3);
+  toggleOwn(c, false);
+  assert.strictEqual(c.window.localStorage.getItem('pikdame_own_moves'), 'off', 'kept on this device');
+  assert.ok(flights.every((a) => a.cancelled) && ownGhosts(c.doc).length === 0 && hidden(c).length === 0);
+  c.anims.length = 0;
+  c.clock.t += 500;
+  c.state(myTurn({ hand: ['C9-0', 'SK-0'], melds: [['p1', [...SEVENS, 'S7-1']]] }));
+  assert.deepEqual(ownGhosts(c.doc), []);
+  assert.deepEqual(c.anims, [], 'off: no animation at all for my move');
+  assert.ok(meldCard(c.doc, 'S7-1'), 'the card lies there at once');
+  // The others' moves keep their own switch.
+  assert.strictEqual(box(c).checked, true);
+  // On again: the next card flies; what was laid meanwhile is not replayed.
+  toggleOwn(c, true);
+  assert.strictEqual(c.window.localStorage.getItem('pikdame_own_moves'), 'on');
+  c.clock.t += 500;
+  c.state(myTurn({ hand: ['C9-0', 'SK-0'], melds: [['p1', [...SEVENS, 'S7-1']]], log: [{ text: 'x' }] }));
+  assert.deepEqual(ownGhosts(c.doc), [], 'no stale replay');
+  // A reload keeps the choice; with the others' moves off, mine still fly.
+  const off = await laid(t, { stored: { pikdame_own_moves: 'off' } });
+  assert.strictEqual(ownBox(off).checked, false);
+  assert.deepEqual(ownGhosts(off.doc), []);
+  const mine = await laid(t, { stored: { pikdame_opp_moves: 'off' } });
+  assert.strictEqual(ownGhosts(mine.doc).length, 3);
+  assert.deepEqual([...c.errors, ...off.errors, ...mine.errors], []);
+});
+
 // --- CSS contract -------------------------------------------------------------------------
 test('CSS contract: the ghosts are fixed, click-through, on the fly layer, and gone with reduced motion', () => {
   const css = fs.readFileSync(path.join(pub, 'style.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
@@ -765,6 +1070,12 @@ test('CSS contract: the ghosts are fixed, click-through, on the fly layer, and g
   assert.doesNotMatch(css, /oppUnder/, 'no stand-in card on the pile: it always shows the state');
   assert.doesNotMatch(fly, /var\(--accent/, 'no selection colour on a card in the air');
   assert.match(SRC[2], new RegExp(`const OPP_HOLD_SLACK_MS = ${SLACK};`), 'the test and the client agree on the hold');
+  // My own cards: the same ghost on the table-effects layer, so no dialog is ever flown over.
+  assert.strictEqual(rule('.card.ownFly').trim(), 'z-index: var(--z-table-fx);');
+  assert.ok(css.indexOf('.card.ownFly {') > css.indexOf('.pile-card.oppFly, .card.oppFly {'), 'after the ghost it refines');
+  const mark = rule('.card.ownFly .ownFlyMark');
+  for (const decl of ['position: absolute', 'display: flex', 'margin: 0']) assert.ok(mark.includes(decl), `.ownFlyMark: ${decl}`);
+  assert.ok(css.indexOf('.card.ownFly .ownFlyMark {') > css.indexOf('.card-compact .suitMark { display: none; }'), 'it shows where a compact card hides its mark');
 });
 
 test('the turn marker waits for the cards: while Klaus\'s cards fly he stays marked, then Horst', async (t) => {

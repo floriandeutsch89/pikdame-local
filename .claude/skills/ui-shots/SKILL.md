@@ -58,6 +58,16 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   starts from a fresh "before"; the page's timers wait during a frame, so a
   slow 2x shot cannot end the flight. On a `SHOTS_ROOT` main checkout they are
   the "before" pictures (the table just jumps).
+- **My own melds in flight:** `own-meld` (a new meld of four), `own-layoff`, `own-swap`
+  (a joker swapped out) select the cards as a player would, then shoot frames frozen
+  at `--film 0,90,180,...` ms after the state with them laid, and the end. In `land`
+  the landing row is cut by the meld area (the ghost melts into it). `own-perf`
+  takes no shots: it prints CDP `Performance.getMetrics` deltas (layouts, style
+  recalcs, script and task time) around `--reps 10` rounds of each move and
+  `--idle 2000` ms of an idle table (`--kinds meld` measures only that move); with
+  `SHOTS_ROOT=<main>` the same scenario gives the "before". Alternate main and
+  branch several times on a quiet machine: the times vary by half between runs
+  when other sessions work, the counts hardly.
 - **Themes:** `--theme table|night|felt|love|bordeaux|kitchen`. `kitchen` is
   the light one; check it whenever a colour or a translucent white changes.
 - **Table light:** the table's light follows the Berlin clock

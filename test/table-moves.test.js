@@ -1,7 +1,8 @@
 // Other players' moves read from two states (public/table-moves.js): stock draw,
 // pile take, new meld cards and the discard - from where the cards are, never from
-// hand counts. The fuzz drives the engine seat by seat and checks every state against
-// what the engine did since the state before: no false moves, no missed ones.
+// hand counts. My own cards laid from the hand are read the same way (own). The fuzz
+// drives the engine seat by seat and checks every state against what the engine did
+// since the state before: no false moves, no missed ones.
 const test = require('node:test');
 const assert = require('node:assert');
 const TM = require('../public/table-moves.js');
@@ -12,7 +13,7 @@ const Bot = require('../game/Bot');
 /** 'H7-0' -> the seven of hearts of deck 0 (engine ids: suit, rank, deck). */
 const C = (id) => ({ id, suit: id[0], rank: id.slice(1, id.indexOf('-')), isJoker: false });
 /** A playing state as p1 sees it: pile top first, melds as [ownerId, [ids]] (a 'J*' id is a joker slot). */
-function st({ pile = ['D4-0'], melds = [], turn = 8, cur = 'b1', phase = 'meld', draw = 40, faceDownTop = false, mustLay = null, roundNumber = 2, state = 'playing' } = {}) {
+function st({ pile = ['D4-0'], melds = [], turn = 8, cur = 'b1', phase = 'meld', draw = 40, faceDownTop = false, mustLay = null, roundNumber = 2, state = 'playing', hand = ['H2-0', 'C9-0'] } = {}) {
   const cards = pile.map(C);
   return {
     phase: state, roundNumber, turnIndexInRound: turn, currentPlayerId: cur, turnPhase: phase,
@@ -24,7 +25,7 @@ function st({ pile = ['D4-0'], melds = [], turn = 8, cur = 'b1', phase = 'meld',
       slots: ids.map((id) => (id.startsWith('J') ? { joker: { id, isJoker: true }, representsRank: '7', representsSuit: 'S' } : { real: C(id) })),
     })),
     players: [
-      { id: 'p1', name: 'Flo', handCount: 2, hand: [C('H2-0'), C('C9-0')] },
+      { id: 'p1', name: 'Flo', handCount: hand.length, hand: hand.map((id) => (id.startsWith('J') ? { id, isJoker: true } : C(id))) },
       { id: 'b1', name: 'Klaus', handCount: 12 },
       { id: 'b2', name: 'Horst', handCount: 9 },
     ],
@@ -147,6 +148,60 @@ test('unsure is silent: impossible combinations never fly', () => {
   assert.deepEqual(TM.diff(F(base), null, 'p1'), []);
 });
 
+// --- my own cards -------------------------------------------------------------------
+/** My moves as short strings: meld:m0:H7-0@2 (meld, card, slot), out:m0:J1@2>S7-0 (the joker, its slot, the card that took it). */
+const ownOf = (a, b) => TM.own(F({ cur: 'p1', ...a }), F({ cur: 'p1', ...b }), 'p1').flatMap((m) => (m.kind === 'meld'
+  ? m.cards.map((c) => `meld:${m.meld}:${c.id}@${c.slot}`)
+  : [`${m.kind}:${m.meld}:${m.card.id}@${m.slot}>${m.by.id}`]));
+const SEVENS = ['H7-0', 'D7-0', 'C7-0'];
+
+test('own: cards from my hand in my melds - a new meld, a lay-off, a merged set, each with its slot', () => {
+  const held = { hand: [...SEVENS, 'S7-1', 'H2-0', 'C9-0'] };
+  const laid = { hand: ['S7-1', 'H2-0', 'C9-0'], melds: [['b1', ['S5-0', 'S6-0', 'S7-0']], ['p1', SEVENS]] };
+  assert.deepEqual(ownOf({ ...held, melds: [['b1', ['S5-0', 'S6-0', 'S7-0']]] }, laid), ['meld:m1:H7-0@0', 'meld:m1:D7-0@1', 'meld:m1:C7-0@2']);
+  // A lay-off: one new card in the meld I have.
+  assert.deepEqual(ownOf(laid, { hand: ['H2-0', 'C9-0'], melds: [['b1', ['S5-0', 'S6-0', 'S7-0']], ['p1', [...SEVENS, 'S7-1']]] }), ['meld:m1:S7-1@3']);
+  // A second set of the rank merges into mine: the old cards may move, only the new ones were laid.
+  assert.deepEqual(ownOf({ hand: ['H7-1', 'D7-1', 'C7-1', 'C9-0'], melds: [['p1', SEVENS]] }, { hand: ['C9-0'], melds: [['p1', ['H7-0', 'H7-1', 'D7-0', 'D7-1', 'C7-0', 'C7-1']]] }),
+    ['meld:m0:H7-1@1', 'meld:m0:D7-1@3', 'meld:m0:C7-1@5']);
+  // Two melds in one state (a forced turn): both, in table order.
+  assert.deepEqual(ownOf({ hand: [...SEVENS, 'C10-0', 'CJ-0', 'CQ-0', 'C9-0'] }, { hand: ['C9-0'], melds: [['p1', SEVENS], ['p1', ['C10-0', 'CJ-0', 'CQ-0']]] }).length, 6);
+  // The pile's rest follows the taken card into my hand in the same state: the meld still flew.
+  assert.deepEqual(ownOf({ ...held, pile: ['C3-0', 'D4-0'], mustLay: 'H7-0' }, { hand: ['S7-1', 'H2-0', 'C9-0', 'C3-0', 'D4-0'], pile: [], melds: [['p1', SEVENS]] }).length, 3);
+});
+
+test('own: a joker swap - my card takes its slot, the joker leaves the game from there', () => {
+  const before = { hand: ['S7-0', 'C9-0'], melds: [['p1', ['H7-0', 'D7-0', 'J1']]] };
+  assert.deepEqual(ownOf(before, { hand: ['C9-0'], melds: [['p1', ['H7-0', 'D7-0', 'S7-0']]] }), ['meld:m0:S7-0@2', 'out:m0:J1@2>S7-0']);
+  // A real card never leaves the table that way: unsure, so nothing.
+  assert.deepEqual(ownOf({ hand: ['S7-0', 'C9-0'], melds: [['p1', SEVENS]] }, { hand: ['C9-0'], melds: [['p1', ['H7-0', 'D7-0', 'S7-0']]] }), []);
+});
+
+test('own: silent when it was not my hand, not my turn, or unsure', () => {
+  const held = { hand: [...SEVENS, 'C9-0'] };
+  const laid = { hand: ['C9-0'], melds: [['p1', SEVENS]] };
+  assert.strictEqual(ownOf(held, laid).length, 3);
+  assert.deepEqual(TM.own(null, F({ cur: 'p1', ...laid }), 'p1'), [], 'the first state is a baseline');
+  assert.deepEqual(TM.own(F({ cur: 'b1', ...held }), F({ cur: 'b1', ...laid }), 'p1'), [], 'not my turn');
+  assert.deepEqual(ownOf(held, { ...laid, roundNumber: 3 }), [], 'a new deal');
+  assert.deepEqual(ownOf(held, held), [], 'a state that moved nothing');
+  assert.deepEqual(ownOf(held, { ...laid, state: 'cutting' }), []);
+  assert.deepEqual(ownOf(held, { ...laid, turn: 10, cur: 'b2' }), [], 'two turns in one step');
+  // "Rückgängig": the cards are back in my hand - nothing was laid.
+  assert.deepEqual(ownOf(laid, held), []);
+  // A card in my meld that I never held (it came straight from a pile in the same state).
+  assert.deepEqual(ownOf({ hand: ['H7-0', 'D7-0', 'C9-0'] }, laid), []);
+  // A card on the table that is still in my hand, or new cards on someone else's table.
+  assert.deepEqual(ownOf(held, { hand: [...SEVENS, 'C9-0'], melds: [['p1', SEVENS]] }), []);
+  assert.deepEqual(ownOf(held, { hand: ['C9-0'], melds: [['b1', SEVENS]] }), []);
+  // An undo and a new meld in one state: unsure.
+  assert.deepEqual(ownOf({ hand: ['C10-0', 'CJ-0', 'CQ-0', 'C9-0'], melds: [['p1', SEVENS]] }, { hand: [...SEVENS, 'C9-0'], melds: [['p1', ['C10-0', 'CJ-0', 'CQ-0']]] }), []);
+  // A whole turn of mine in one state (a timed-out turn): the melds flew, the discard is flyCard's.
+  assert.strictEqual(ownOf(held, { hand: [], turn: 9, cur: 'b1', pile: ['C9-0', 'D4-0'], melds: [['p1', SEVENS]] }).length, 3);
+  // Going out in that state: the round ends within the turn.
+  assert.strictEqual(ownOf(held, { hand: [], state: 'roundEnd', pile: ['X1-0', 'D4-0'], faceDownTop: true, melds: [['p1', SEVENS]] }).length, 3);
+});
+
 test('changed: a vote or an emote moves nothing, every location change counts', () => {
   const a = F({ pile: ['D4-0'], melds: [['b1', ['H7-0', 'D7-0', 'C7-0']]] });
   assert.strictEqual(TM.changed(a, F({ pile: ['D4-0'], melds: [['b1', ['H7-0', 'D7-0', 'C7-0']]] })), false);
@@ -240,7 +295,7 @@ test('fuzz: real games - every state names exactly the moves the engine made, ne
   const mismatches = [];
   const counts = {};
   let states = 0;
-  for (const seed of [11, 23, 47, 58, 61, 77, 85, 93, 101, 113, 127, 131]) {
+  for (const seed of [11, 23, 47, 58, 61, 77, 85, 93, 101, 113, 127, 131, 182]) { // 182: I swap a joker out myself
     const inbox = [];
     // The engine's moves since the last state p1 got. An entry is written BEFORE its
     // action (a human's state leaves inside it) and settled after: dead if refused.
@@ -273,9 +328,17 @@ test('fuzz: real games - every state names exactly the moves the engine made, ne
     wrap('discard', ([pid, id]) => [`discard:${pid}:${id}`], (es, [pid], r) => { if (r.roundEnded) es[0].text = `discard:${pid}:facedown`; });
     wrap('undoPileTake', ([pid]) => [`back:${pid}:${g.mustLayOffCardId}`]);
     const laid = { layoutMeld: (a) => a[1], layOffCards: (a) => a[2], layOffCard: (a) => [a[2]], swapJoker: (a) => [a[2]] };
+    // The joker a swap would free: the slot standing in for the hand card (Rules.tryJokerSwap).
+    const freed = ([pid, meldId, handId]) => {
+      const hand = (g.players.find((x) => x.id === pid) || { hand: [] }).hand.find((cd) => cd.id === handId);
+      const m = g.tableMelds.find((x) => x.id === meldId);
+      const slot = hand && m && m.slots.find((sl) => sl.joker && sl.representsRank === hand.rank && sl.representsSuit === hand.suit);
+      return slot ? [`out:${pid}:${slot.joker.id}`] : [];
+    };
     for (const [name, ids] of Object.entries(laid)) {
-      wrap(name, (args) => ids(args).map((id) => `meld:${args[0]}:${id}`), (es) => {
+      wrap(name, (args) => [...ids(args).map((id) => `meld:${args[0]}:${id}`), ...(name === 'swapJoker' ? freed(args) : [])], (es) => {
         for (const e of es) {
+          if (e.text.startsWith('out:')) continue;
           const id = e.text.split(':')[2];
           const m = g.tableMelds.find((x) => x.slots.some((s) => (s.real || s.joker || {}).id === id));
           if (m) e.text += `:${m.id}`;
@@ -300,11 +363,25 @@ test('fuzz: real games - every state names exactly the moves the engine made, ne
     const check = () => {
       for (const { state, entries } of inbox.splice(0)) {
         states += 1;
-        const want = entries.filter((e) => !e.dead).map((e) => e.text).filter((s) => {
+        const done = entries.filter((e) => !e.dead).map((e) => e.text);
+        const want = done.filter((s) => {
           const [kind, who, id] = s.split(':');
-          return who !== 'p1' && (kind !== 'meld' || shown(state, who, id));
+          return who !== 'p1' && kind !== 'out' && (kind !== 'meld' || shown(state, who, id));
         });
         const now = TM.facts(state, 'p1');
+        // My own cards: exactly what I laid from my hand (and the jokers I swapped out) -
+        // or nothing at all when the state holds more than that (a whole turn in one state).
+        const mine = done.filter((s) => {
+          const [kind, who, id] = s.split(':');
+          return who === 'p1' && (kind === 'out' || (kind === 'meld' && shown(state, who, id)));
+        }).sort();
+        const flown = TM.own(prev, now, 'p1').flatMap((m) => (m.kind === 'meld' ? m.cards.map((c) => `meld:p1:${c.id}:${m.meld}`) : [`out:p1:${m.card.id}`])).sort();
+        const stepped = prev && prev.cur === 'p1' && now.cur === 'p1' && now.turn === prev.turn && now.phase === 'playing';
+        if (flown.length ? JSON.stringify(flown) !== JSON.stringify(mine) : stepped && mine.length) {
+          mismatches.push(`seed ${seed} R${state.roundNumber} T${state.turnIndexInRound} own: engine ${mine.join(',') || '-'} / client ${flown.join(',') || '-'}`);
+        }
+        if (flown.length) counts.own = (counts.own || 0) + 1;
+        if (flown.some((s) => s.startsWith('out:'))) counts.ownOut = (counts.ownOut || 0) + 1;
         const got = said(TM.diff(prev, now, 'p1')).map((s) => {
           const [kind, who, a, b] = s.split(':');
           return kind === 'meld' ? `meld:${who}:${b}:${a}` : s; // the truth names card, then meld
@@ -359,7 +436,7 @@ test('fuzz: real games - every state names exactly the moves the engine made, ne
   }
   assert.deepEqual(mismatches, [], `client and engine disagree:\n  ${mismatches.slice(0, 12).join('\n  ')}`);
   // Not vacuous: every kind of move came up, the human paths and the Zen split too.
-  for (const kind of ['draw', 'take', 'meld', 'discard', 'facedown', 'back', 'split', 'undoMeld']) {
+  for (const kind of ['draw', 'take', 'meld', 'discard', 'facedown', 'back', 'split', 'undoMeld', 'own', 'ownOut']) {
     assert.ok(counts[kind] > 0, `no ${kind} in the fuzz games: ${JSON.stringify(counts)}`);
   }
   assert.ok(states > 2000, `only ${states} states`);
