@@ -22,6 +22,7 @@
 // gameover-stats (its Statistik tab: game totals open, new achievements),
 // gameover-chart / gameover-chart-team (the score chart drawing itself, frozen at --film ms, then its end),
 // table (needs --state <file>: a GameManager.publicState('p1') JSON in the playing phase),
+// turns (an engine game turn by turn: an opponent on turn, the turn light mid-glide, then me; --perf <ms>: what the turns cost),
 // table-stammtisch (an engine table at the mock Stammtisch, seen by a guest: Oma Gerda organizes, bots on Mittel),
 // puzzle / puzzle-turn / puzzle-out (one meld laid), puzzle-refused (two melds laid at once: refused), puzzle-solved (3 stars + the tile),
 // challenge (intro, attempt used),
@@ -519,6 +520,35 @@ function tableState() {
   }
   g.destroy();
   return st;
+}
+// turns: a real engine game turn by turn, as the server sends it to p1 (one state per turn; my own
+// turns are played by the bot). Seeded, so a before (SHOTS_ROOT=main) and an after see the same game.
+function turnStates(turns) {
+  const GM = require(path.join(ROOT, 'game', 'GameManager'));
+  const realRandom = Math.random;
+  let s = 20261112;
+  Math.random = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+  try {
+    const g = new GM(() => {}, { deckSeed: 7 });
+    g.maybeRunBotTurn = () => {}; // the turns are driven here (CLAUDE.md: bot timer off)
+    g.addOrReconnectPlayer('p1', ME);
+    g.fillWithBots();
+    g.startNewRound();
+    if (g.phase === 'cutting') g.performCut(g.cutterId, 0.5);
+    const states = [];
+    const keep = () => states.push(JSON.parse(JSON.stringify({ ...g.publicState('p1'), lastCutReveal: null })));
+    keep();
+    for (let i = 0; i < turns && g.phase === 'playing'; i++) {
+      const cp = g.currentPlayer();
+      g.runBotTurn(cp.id, { forced: !cp.isBot });
+      if (g.phase !== 'playing') break;
+      keep();
+    }
+    g.destroy();
+    return states;
+  } finally {
+    Math.random = realRandom;
+  }
 }
 // opp-moves: two engine states around ONE opponent turn (one state, as a bot sends it):
 // before = its draw phase, after = drawn, a new meld laid, discarded. kind 'take': taken
@@ -1449,6 +1479,77 @@ async function fanOut() {
           await page.waitForTimeout(200);
           await shot('stats-badges-rare');
           await page.click('#statsCloseBtn');
+        }
+        // turns: the turn passing at a live engine table. Pictures: an opponent on turn, the turn
+        // light frozen --film ms into its glide to me, then my turn. --perf <ms>: no pictures - what
+        // --turns N turns cost (one state every --step ms) and what <ms> of idle after them cost: the
+        // main thread's counters (CDP Performance.getMetrics) plus the paints and raster tasks of a
+        // trace, the median of --runs. SHOTS_ROOT=<main> gives "before" (CLAUDE.md 2c).
+        if (sc === 'turns') {
+          const states = turnStates(Number(arg('turns', 16)));
+          const mine = states.findIndex((st, i) => i > 1 && st.currentPlayerId === 'p1');
+          const theirs = mine - 1; // the opponent right before me: the light glides from that chip to my hand
+          if (!arg('perf', '')) {
+            await toTable(states[theirs]);
+            await shot('turns-opp');
+            inject({ type: 'state', state: states[mine] });
+            // The light stays with the opponent's cards while they fly and glides once they have landed:
+            // wait for its transition, then hold it at --film ms (a checkout without the light has none).
+            const t = Number(arg('film', 350));
+            const gliding = await page.waitForFunction(() => document.getAnimations().some((a) => a.transitionProperty === 'transform'
+              && a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest('#turnLight')), null, { timeout: 4000 }).then(() => true, () => false);
+            if (gliding) {
+              await page.evaluate((ms) => document.getAnimations().forEach((a) => {
+                a.pause();
+                if (a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest('#turnLight')) a.currentTime = ms;
+              }), t);
+              await shot(`turns-glide-${String(t).padStart(4, '0')}`);
+              await page.evaluate(() => document.getAnimations().forEach((a) => a.play()));
+            }
+            await page.waitForTimeout(1400);
+            await shot('turns-me');
+            continue;
+          }
+          const idle = Number(arg('perf', 10000));
+          const step = Number(arg('step', 900));
+          const KEYS = ['LayoutCount', 'RecalcStyleCount', 'LayoutDuration', 'RecalcStyleDuration', 'ScriptDuration', 'TaskDuration'];
+          const TRACED = ['Paint', 'RasterTask'];
+          const cdp = await ctx.newCDPSession(page);
+          await cdp.send('Performance.enable');
+          const read = async () => Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]));
+          const phase = async (work) => {
+            await browser.startTracing(page, { categories: ['devtools.timeline', 'disabled-by-default-devtools.timeline', 'cc'] });
+            const a = await read();
+            await work();
+            const b = await read();
+            const trace = JSON.parse((await browser.stopTracing()).toString('utf8'));
+            const events = (Array.isArray(trace) ? trace : trace.traceEvents).filter((e) => e.ph === 'X' || e.ph === 'B');
+            const row = Object.fromEntries(KEYS.map((k) => [k, b[k] - a[k]]));
+            for (const n of TRACED) row[n] = events.filter((e) => e.name === n).length;
+            return row;
+          };
+          const runs = [];
+          for (let i = 0; i < Number(arg('runs', 3)); i++) {
+            await toTable(states[0]);
+            await page.waitForTimeout(1000);
+            const turns = await phase(async () => {
+              for (const st of states.slice(1)) { inject({ type: 'state', state: st }); await page.waitForTimeout(step); }
+            });
+            runs.push({ turns, idle: await phase(() => page.waitForTimeout(idle)) });
+          }
+          const median = (list) => list.slice().sort((x, y) => x - y)[Math.floor(list.length / 2)];
+          const row = (part) => [...KEYS, ...TRACED].map((k) => {
+            const v = median(runs.map((r) => r[part][k]));
+            return `${k} ${/Duration/.test(k) ? `${(v * 1000).toFixed(1)} ms` : v}`;
+          }).join(', ');
+          const left = await page.evaluate(() => ({
+            running: document.getAnimations().filter((x) => x.playState === 'running' && x.effect && x.effect.target && x.effect.target.closest && x.effect.target.closest('#turnLight')).length,
+            willChange: [...document.querySelectorAll('#turnLight, #turnLight *')].filter((n) => getComputedStyle(n).willChange !== 'auto').length,
+          }));
+          console.log(`perf ${vn} turns: ${states.length - 1} turns, one every ${step} ms: ${row('turns')}`);
+          console.log(`perf ${vn} turns: the ${idle} ms after: ${row('idle')}`);
+          console.log(`perf ${vn} turns: left on the turn light: ${left.running} running animation(s), ${left.willChange} will-change`);
+          continue;
         }
         if (sc === 'table' || sc === 'table-stammtisch' || sc === 'table-team' || sc === 'table-team-named' || sc === 'table-team-b' || sc === 'table-team-many' || sc === 'table-team-rivals') {
           // Live table: needs --state <file> with a publicState('p1') JSON (playing phase);

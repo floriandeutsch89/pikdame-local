@@ -129,6 +129,7 @@
   <script src="/i18n.js" defer></script>
   <script src="/music-player.js" defer></script>
   <script src="/table-light.js" defer></script>
+  <script src="/turn-light.js" defer></script>
   <script src="/table-moves.js" defer></script>
   <script src="/boss-fight.js" defer></script>
   <script src="/score-chart.js" defer></script>
@@ -745,6 +746,9 @@
 
     <!-- SPIELTISCH -->
     <section id="table" class="screen hidden">
+      <!-- Turn light: a pool of light on the felt at the seat on turn, under every card and
+           caption (client.js applyTurnLight, style.css TURN LIGHT). -->
+      <div id="turnLight" aria-hidden="true"><span><i></i></span></div>
       <!-- Header: navigation left (home), status in the middle (whose turn),
            actions right (emote, pause, "Optionen"). Score and round info live
            down by the hand, where the player looks. -->
@@ -1414,6 +1418,12 @@
                 <svg class="icon prefIcon" aria-hidden="true"><use href="#i-cardup"/></svg>
                 <span class="prefText"><span class="prefLabel">Eigene Auslage</span><span class="prefSub">Deine Karten gleiten in die Auslage</span></span>
                 <input type="checkbox" id="ownMovesCheckbox" class="settingsCheckbox" />
+              </label>
+              <!-- Off: no pool of light at the seat on turn (client.js setTurnLight). -->
+              <label class="prefRow" for="turnLightCheckbox">
+                <svg class="icon prefIcon" aria-hidden="true"><use href="#i-sparkle"/></svg>
+                <span class="prefText"><span class="prefLabel">Zuglicht</span><span class="prefSub">Ein Lichtschein zeigt, wer am Zug ist</span></span>
+                <input type="checkbox" id="turnLightCheckbox" class="settingsCheckbox" />
               </label>
               <!-- Off: boss floors start without the entrance, hits only move the life bars (client.js setBossFx). -->
               <label class="prefRow" for="bossFxCheckbox">

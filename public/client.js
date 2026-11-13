@@ -938,6 +938,84 @@
   }
   document.addEventListener('visibilitychange', syncTableLight);
 
+  // --- Turn light: a soft pool of light on the felt at the seat on turn. public/turn-light.js
+  // plans it from the seats' real boxes, style.css (TURN LIGHT) owns colour and strength.
+  const turnLight = window.PikdameTurnLight || null;
+  const TURN_LIGHT_KEY = 'pikdame_turn_light'; // "Zuglicht" in "Optionen", per device, default on
+  let turnLightOn = storageGet(TURN_LIGHT_KEY) !== 'off';
+  let turnLightSeat = null; // whose seat the pool lies at; null = dark
+  let turnLightShown = ''; // the geometry written last
+  let turnLightQueued = false;
+  /** The seat on turn as a box on the table: my hand, an opponent's chip or the boss field. */
+  function turnLightTarget() {
+    if (!turnLightOn || !lastState || el('table').classList.contains('hidden')) return null;
+    const id = turnLight.seatOf(lastState, shownTurnId());
+    if (!id) return null;
+    if (id === playerId) return { id, mine: true, node: el('handWrapper') };
+    const node = bossView()
+      ? el('opponents').querySelector('.bossPanel')
+      : [...el('opponents').children].find((chip) => chip.dataset.playerId === id);
+    return node ? { id, mine: false, node } : null;
+  }
+  function applyTurnLight() {
+    turnLightQueued = false;
+    try {
+      const layer = el('turnLight');
+      const band = layer && layer.firstElementChild;
+      const pool = band && band.firstElementChild;
+      if (!pool) return; // a stale cached page without the layer
+      const target = turnLightTarget();
+      const box = (node) => node.getBoundingClientRect();
+      const p = target && turnLight.plan({
+        table: box(el('table')), layer: box(layer), seats: box(el('opponents')), hand: box(el('handWrapper')),
+        seat: box(target.node), mine: target.mine,
+      });
+      if (!p) {
+        layer.classList.remove('on');
+        turnLightSeat = null;
+        return;
+      }
+      const shown = `${Object.values(p.band)}|${p.transform}`;
+      if (shown !== turnLightShown) {
+        turnLightShown = shown;
+        // Only a turn passing on glides; the first light and a layout that moved just appear.
+        pool.classList.toggle('glide', turnLightSeat !== null && turnLightSeat !== target.id && !reducedMotion);
+        for (const side of ['left', 'top', 'width', 'height']) band.style[side] = `${p.band[side]}px`;
+        pool.style.transform = p.transform;
+      }
+      turnLightSeat = target.id;
+      layer.classList.add('on');
+    } catch (e) { /* the light is decoration, never critical */ }
+  }
+  /** After a render or a layout change: one placement per frame, none while the tab is hidden. */
+  function syncTurnLight() {
+    if (!turnLight || turnLightQueued) return;
+    turnLightQueued = true;
+    requestAnimationFrame(applyTurnLight);
+  }
+  /** "Zuglicht": off, the table marks the turn as before (header, ring on the chip). */
+  function setTurnLight(on) {
+    turnLightOn = on;
+    storageSet(TURN_LIGHT_KEY, on ? 'on' : 'off');
+    const box = el('turnLightCheckbox');
+    if (box) box.checked = on;
+    syncTurnLight();
+  }
+  {
+    const box = el('turnLightCheckbox'); // missing in a stale cached page: the setting just waits
+    if (box) {
+      box.checked = turnLightOn;
+      box.addEventListener('change', () => setTurnLight(box.checked));
+    }
+    // The seats move with the layout (rotation, a second hand row, the hand folded away).
+    try {
+      if (turnLight && typeof ResizeObserver === 'function') {
+        const watch = new ResizeObserver(syncTurnLight);
+        for (const id of ['table', 'opponents', 'handWrapper']) watch.observe(el(id));
+      }
+    } catch (e) { /* the light is decoration, never critical */ }
+  }
+
   let lastToneAt = 0; // a later cue can wait for this one (sound.unlock)
   const QUIET_GAIN = 0.4; // another player's move sounds at this share of my own
   function playTone(freqs, durationMs, type = 'sine', gainValue = 0.06, quiet = false) {
@@ -2443,6 +2521,7 @@
       syncSeasonSnow();
       syncTableLight();
       try { syncTableMark(); } catch (e) { /* the felt's mark is decoration, never critical */ }
+      syncTurnLight(); // placed in the next frame, from the seats this render builds
       renderPause();
       try { renderTableOptions(); } catch (e) { /* "Optionen" must never break the table */ }
 
@@ -8474,6 +8553,7 @@
     for (const chip of el('opponents').children) {
       if (chip.dataset.playerId) chip.classList.toggle('active', playing && chip.dataset.playerId === lastState.currentPlayerId);
     }
+    syncTurnLight();
   }
 
   /** Ends the turn in flight at once: ghosts gone, every card where the state has it. */

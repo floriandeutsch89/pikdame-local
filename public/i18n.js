@@ -29,6 +29,8 @@ window.I18N_STATIC = {
   'Ihre Karten fliegen über den Tisch': 'Their cards fly across the table',
   'Eigene Auslage': 'Your own melds',
   'Deine Karten gleiten in die Auslage': 'Your cards glide into your melds',
+  'Zuglicht': 'Turn light',
+  'Ein Lichtschein zeigt, wer am Zug ist': 'A soft light shows whose turn it is',
   'Boss-Effekte': 'Boss effects',
   'Haustier': 'Pet',
   'Liegt bei dir am Tisch': 'Lies beside you at the table',
