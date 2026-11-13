@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an Pik Dame werden hier dokumentiert.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/), Versionierung nach [SemVer](https://semver.org/lang/de/)
 
+## [2.142.0] - 2026-11-13
+
+### Changed
+- Die Ablage zeigt ihre Dicke: Unter der obersten Karte schauen Kartenkanten hervor,
+  je mehr Karten im Stapel liegen, desto mehr (eine Kante je zwei Karten, höchstens
+  sieben). So siehst du auf einen Blick, wie viel du mit der Ablage aufnimmst; die
+  Zahl am Stapel bleibt
+
 ## [2.141.0] - 2026-11-13
 
 ### Added
