@@ -16,6 +16,7 @@ const { addDays, gameDay } = require('./GameDay');
 const BotTower = require('./BotTower');
 const { BADGE_IDS, BADGE_FAMILIES } = require('./Badges');
 const { isCelebration, celebrationLevel } = require('./Celebrations');
+const { isPet, petLevel } = require('./Pets');
 const { levelFromXp, advanceDailyStreak, streakGraceAvailable, isWelcomeBack, xpForTowerStage, XP_TOWER_CROWN } = require('./Progression');
 
 const DEFAULT_DATA_FILE = path.join(process.env.PIKDAME_DATA_DIR || path.join(__dirname, '..', 'data'), 'players.json');
@@ -129,6 +130,7 @@ function toProfile(r) {
   if (r.best_game_score !== null) p.bestGameScore = r.best_game_score;
   if (r.best_round_score !== null) p.bestRoundScore = r.best_round_score;
   if (r.celebration) p.celebration = r.celebration;
+  if (r.pet) p.pet = r.pet;
   if (r.last_perfect_puzzle_day) p.lastPerfectPuzzleDay = r.last_perfect_puzzle_day;
   if (r.daily_last_day) p.daily = { streak: r.daily_streak, last: r.daily_last_day, graceAt: r.daily_grace_day, best: r.daily_best_streak };
   if (r.details) {
@@ -583,6 +585,21 @@ function createPlayerStore(pool, { legacyFile = DEFAULT_DATA_FILE, now = () => D
     return r || { error: 'Profil nicht gefunden.' };
   }
 
+  /**
+   * Table pet (game/Pets.js), unlocked by the profile's level; 'none' clears it.
+   * @returns {Promise<{pet:string}|{error:string}>}
+   */
+  async function setPet(name, id) {
+    const r = await withPlayer(name, {}, async (c, row) => {
+      if (!isPet(id)) return { error: 'Dieses Haustier gibt es nicht.' };
+      const need = petLevel(id);
+      if (levelFromXp(row.xp || 0).level < need) return { error: `Dieses Haustier gibt es ab Stufe ${need}.` };
+      await c.query('UPDATE players SET pet = $2, updated_at = $3 WHERE id = $1', [row.id, id === 'none' ? null : id, new Date(now())]);
+      return { pet: id };
+    });
+    return r || { error: 'Profil nicht gefunden.' };
+  }
+
   /** Seasonal card back for this profile (first unlock day kept). @returns {Promise<boolean>} newly unlocked */
   async function unlockSeasonalBack(name, backId, date) {
     if (!backId || !keyOf(name) || !isDay(date)) return false;
@@ -811,6 +828,7 @@ function createPlayerStore(pool, { legacyFile = DEFAULT_DATA_FILE, now = () => D
     touchDailyStreak,
     setFavoriteBadges,
     setCelebration,
+    setPet,
     puzzleStatus,
     puzzleStarsFor,
     recordPuzzleAttempt,

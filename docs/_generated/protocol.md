@@ -4,12 +4,12 @@
 
 The client talks to the server over a single WebSocket. Every message is JSON
 with a `type` field. Both lists below are generated from the server's message
-handlers, so they always match the running code: **53** message
+handlers, so they always match the running code: **54** message
 types go up, **33** come down.
 
 ## Client → server
 
-### Before a table {bdg-secondary}`23`
+### Before a table {bdg-secondary}`24`
 
 Sent on a fresh connection, before the socket is bound to a table. These carry `msg.name` because the server has no seat to look up yet.
 
@@ -24,6 +24,7 @@ Sent on a fresh connection, before the socket is bound to a table. These carry `
 | `getGameHistory` | The finished matches of a player name ("Meine Partien"). |
 | `setFavoriteBadges` | Pin up to three badges to the identity chip. |
 | `setCelebration` | Pick the victory celebration the whole table sees when you win (an id from `game/Celebrations.js`; signed-in owner of the name, unlocked by level). |
+| `setPet` | _(see source)_ |
 | `ping` | Keep-alive from the client; answered immediately. Lets a phone notice a dead connection before the server-side heartbeat does. |
 | `getPuzzle` | Today's daily puzzle (same for everyone, derived from the game day). |
 | `solvePuzzle` | Submit a puzzle answer; the server grades it and returns the solution. With the owner's login token, the day's first solve also counts for the account and its season. |

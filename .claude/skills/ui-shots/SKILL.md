@@ -36,6 +36,11 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
 - **Table scene:** `--scenes table --state <file>` injects a live game. Build
   the state from the real engine (`GameManager` + `fillWithBots` +
   `runBotTurn`, then `publicState('p1')`), not by hand.
+- **Table pets:** `pets` (my cat beside the piles, then stroked by a real pointer; `--pets-stroke` shoots any case/mood stroked;
+  `unlock-pet` with `--signed-in` = the one-time "a cat is waiting" card, then tapped; `--pets-case crowd` = a full
+  table of humans with long names; `--pets-mood turn|rest|asleep` = sitting up, lying, sleeping). Every run prints
+  `pets [...]: N shown, no overlap` or what the pet lies on: it must never cover anything. And
+  `settings-pet` (the pet choice with its preview in "Optionen").
 - **Joker choice dialog:** `joker-choice` ("set or run?"; `--joker layoff` = which end of a run).
 - **Other players' moves in flight:** `opp-moves` (a bot's turn in one state:
   stock draw, a new meld, the discard) and `opp-moves-take` (a pile take
@@ -117,6 +122,18 @@ node .claude/skills/ui-shots/scripts/ui-shots.js --out <dir> \
   that moment (`1500`: the rain mid-band), `--reduced-motion` gives the still row.
   The script keeps the band until the shot is taken: its timer ends the still one
   after 2.4 s, and a 2x desktop shot took 1.6 s to capture (it came out empty).
+- **Score chart drawing itself:** `gameover-chart` (a match with three lead
+  changes; `gameover-chart-team` the team match) shoots the game-over chart
+  frozen `--film 300,700,...` ms after it was seen, then its end. Each frame is
+  a fresh opening (a round end in between). The plain `gameover*` scenes finish
+  the reveal before their shot. `--perf 3000` measures instead of shooting
+  (CLAUDE.md 2c: effects are measured against main): layout and style passes,
+  script and task time of the main thread (CDP `Performance.getMetrics`) over
+  that many ms from the opening and over the same span after it, the median of
+  `--runs 7` openings; `--perf-scroll` scrolls to a chart below the fold. Run
+  it once more with `SHOTS_ROOT=<main>` for "before", one view per run
+  (`--serial`), never beside another measurement: the times follow the
+  machine's load (the counts hardly do).
 - **Badge unlock cards:** `unlock` (one card on a running table; `--badge <id>`
   another badge, default `wins_10`), `unlock-lobby` (the start screen),
   `unlock-roundend` / `unlock-gameover` (over the result sheets, where the card
