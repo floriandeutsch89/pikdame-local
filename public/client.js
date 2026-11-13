@@ -205,6 +205,10 @@
   const OWN_MOVES_KEY = 'pikdame_own_moves';
   let ownMovesOn = storageGet(OWN_MOVES_KEY) !== 'off';
   const dragLaid = new Set(); // cards I dropped onto a meld myself: they are there already, no flight
+  // The discard pile shows its thickness: up to MAX card edges, one per STEP cards under the
+  // top card (style.css #discardTopCard draws them; test/discard-depth.test.js).
+  const PILE_DEPTH_MAX = 7;
+  const PILE_DEPTH_STEP = 2;
   // --- Sprache (Deutsch/Englisch, Default Deutsch) ----------------------------
   const LANG_KEY = 'pikdame_lang';
   let lang = storageGet(LANG_KEY) === 'en' ? 'en' : 'de';
@@ -3211,12 +3215,8 @@
     const discardTopDiv = el('discardTopCard');
     discardTopDiv.className = 'pile-card';
     paintPileCard(discardTopDiv, lastState.discardTop);
-    // Stapel-Tiefe visuell: mehr Karten = mehr sichtbare Ebenen unter der obersten
-    discardTopDiv.classList.toggle('stacked-2', lastState.discardPileCount > 6);
-    discardTopDiv.classList.toggle(
-      'stacked-1',
-      lastState.discardPileCount > 1 && lastState.discardPileCount <= 6
-    );
+    // The pile's thickness: card edges under the top card (style.css draws --pd of them).
+    discardTopDiv.style.setProperty('--pd', String(discardDepth(lastState.discardPileCount)));
     el('discardCount').textContent = lastState.discardPileCount > 0 ? lastState.discardPileCount : '';
     // Her turn on the pile folds the pop into it (style.css qTurnPile).
     queenDecorate(discardTopDiv, 'pile', 'pile');
@@ -8273,6 +8273,11 @@
     if (slot < 0) return null;
     const group = [...el('melds').querySelectorAll('.meldGroup')].find((g) => g.dataset.meldId === String(meldId));
     return (group && group.children[slot]) || null;
+  }
+
+  /** Card edges under the discard pile's top card: one per PILE_DEPTH_STEP cards below it, capped. */
+  function discardDepth(count) {
+    return Math.max(0, Math.min(PILE_DEPTH_MAX, Math.ceil(((count || 0) - 1) / PILE_DEPTH_STEP)));
   }
 
   /** A pile card's face: rank and suit, the joker's crown, a back, or empty. */
